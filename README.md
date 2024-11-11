@@ -19,7 +19,8 @@ What prior works have tried to address it?
 - [Reconstructive Latent-Space Neural Radiance Fields for Efficient 3D Scene Representations](https://arxiv.org/pdf/2310.17880)
 
 How is your approach different? 
-- ...
+- Zero-1-to-3 doesn't have 3D.
+- Reconstructive paper doesn't have stable diffusion.
 
 What data will you use? 
 - Start with Zero-1-to-3 dataset (drum set, fire hidrant)
@@ -30,5 +31,4 @@ What compute will you use?
 
 What existing codebases will you use?
 - Stable diffusion
-- NeRF or tiny-cuda-nn
-
+- NeRF or tiny-cuda-nn/instant-ngp
