@@ -17,6 +17,8 @@ What is the exact problem you are trying to solve?
 
 What prior works have tried to address it? 
 - [Reconstructive Latent-Space Neural Radiance Fields for Efficient 3D Scene Representations](https://arxiv.org/pdf/2310.17880)
+- [Diffusion with Forward Models: Solving Stochastic Inverse Problems Without Direct Supervision](https://diffusion-with-forward-models.github.io/diffusion-forward-paper.pdf)
+- [Zero-1-to-3: Zero-shot One Image to 3D Object](https://arxiv.org/pdf/2303.11328)
 
 How is your approach different? 
 - Zero-1-to-3 doesn't have 3D.
