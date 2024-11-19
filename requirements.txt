@@ -1,0 +1,8 @@
+opencv-python
+ninja
+git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+git+https://github.com/rahul-goel/fused-ssim/
+submodules/raymarching
+matplotlib
+plyfile
+tqdm
