@@ -8,7 +8,7 @@ from .config import BaseNeRFConfig
 
 class NeRFNetwork(NeRFRenderer):
     def __init__(self,
-                 config=BaseNeRFConfig,
+                 config=BaseNeRFConfig().as_dict(),
                  geo_feat_dim=15,
                  bound=1,
                  **kwargs
@@ -120,3 +120,101 @@ class NeRFNetwork(NeRFRenderer):
             params.append({'params': self.bg_net.parameters(), 'lr': lr})
         
         return params
+
+    def train_step(self, data, loss_fns=None, **kwargs):
+        rays_o = data['rays_o'] # [B, N, 3]
+        rays_d = data['rays_d'] # [B, N, 3]
+
+        images = data['images'] # [B, N, 3/4]
+
+        B, N, C = images.shape
+
+        if C == 3 or self.bg_radius > 0:
+            bg_color = 1
+        # train with random background color if not using a bg model and has alpha channel.
+        else:
+            bg_color = torch.ones(3, device=self.device) # [3], fixed white background
+            # bg_color = torch.rand(3, device=self.device) # [3], frame-wise random.
+            # bg_color = torch.rand_like(images[..., :3]) # [N, 3], pixel-wise random.
+
+        if C == 4:
+            gt_rgb = images[..., :3] * images[..., 3:] + bg_color * (1 - images[..., 3:])
+        else:
+            gt_rgb = images
+
+        outputs = self.render(rays_o, rays_d, bg_color=bg_color, **kwargs)
+    
+        pred_rgb = outputs['image']
+
+        losses, avg_loss = None, 0
+        if loss_fns is not None:
+            losses = {}
+            for name, loss_fn in loss_fns.items():
+                losses[name] = loss_fn(pred_rgb, gt_rgb)
+                avg_loss += losses[name]
+            avg_loss /= len(loss_fns)
+
+        # update error_map
+        if self.error_map is not None and losses is not None:
+            index = data['index'] # [B]
+            inds = data['inds_coarse'] # [B, N]
+
+            # take out, this is an advanced indexing and the copy is unavoidable.
+            error_map = self.error_map[index] # [B, H * W]
+
+            # [debug] uncomment to save and visualize error map
+            # if self.global_step % 1001 == 0:
+            #     tmp = error_map[0].view(128, 128).cpu().numpy()
+            #     print(f'[write error map] {tmp.shape} {tmp.min()} ~ {tmp.max()}')
+            #     tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min())
+            #     cv2.imwrite(os.path.join(self.workspace, f'{self.global_step}.jpg'), (tmp * 255).astype(np.uint8))
+
+            error = avg_loss.detach().to(error_map.device) # [B, N], already in [0, 1]
+            
+            # ema update
+            ema_error = 0.1 * error_map.gather(1, inds) + 0.9 * error
+            error_map.scatter_(1, inds, ema_error)
+
+            # put back
+            self.error_map[index] = error_map
+
+        return pred_rgb, gt_rgb, losses
+
+    def eval_step(self, data, loss_fns=None, **kwargs):
+        rays_o = data['rays_o'] # [B, N, 3]
+        rays_d = data['rays_d'] # [B, N, 3]
+        images = data['images'] # [B, H, W, 3/4]
+        B, H, W, C = images.shape
+
+        # eval with fixed background color
+        bg_color = 1
+        if C == 4:
+            gt_rgb = images[..., :3] * images[..., 3:] + bg_color * (1 - images[..., 3:])
+        else:
+            gt_rgb = images
+        
+        outputs = self.render(rays_o, rays_d, bg_color=bg_color, perturb=False, **kwargs)
+
+        pred_rgb = outputs['image'].reshape(B, H, W, 3)
+        pred_depth = outputs['depth'].reshape(B, H, W)
+
+        losses = None
+        if loss_fns is not None:
+            losses = {}
+            for name, loss_fn in loss_fns.items():
+                losses[name] = loss_fn(pred_rgb, gt_rgb)
+
+        return pred_rgb, pred_depth, gt_rgb, losses
+
+    # moved out bg_color and perturb for more flexible control...
+    def test_step(self, data, bg_color=None, **kwargs):
+        rays_o = data['rays_o'] # [B, N, 3]
+        rays_d = data['rays_d'] # [B, N, 3]
+        H, W = data['H'], data['W']
+
+        outputs = self.render(rays_o, rays_d, bg_color=bg_color, **kwargs)
+
+        pred_rgb = outputs['image'].reshape(-1, H, W, 3)
+        pred_depth = outputs['depth'].reshape(-1, H, W)
+
+        return pred_rgb, pred_depth

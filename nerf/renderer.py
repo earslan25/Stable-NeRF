@@ -2,7 +2,7 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-import raymarching
+import submodules.raymarching as raymarching
 
 
 class NeRFRenderer(nn.Module):
@@ -25,7 +25,7 @@ class NeRFRenderer(nn.Module):
 
         # prepare aabb with a 6D tensor (xmin, ymin, zmin, xmax, ymax, zmax)
         # NOTE: aabb (can be rectangular) is only used to generate points, we still rely on bound (always cubic) to calculate density grid and hashing.
-        aabb_train = torch.FloatTensor([-bound, -bound, -bound, bound, bound, bound])
+        aabb_train = torch.FloatTensor([-bound, -bound, -bound, bound, bound, bound]).cuda()
         aabb_infer = aabb_train.clone()
         self.register_buffer('aabb_train', aabb_train)
         self.register_buffer('aabb_infer', aabb_infer)
@@ -43,6 +43,7 @@ class NeRFRenderer(nn.Module):
         self.register_buffer('step_counter', step_counter)
         self.mean_count = 0
         self.local_step = 0
+        self.error_map = None
     
     def forward(self, x, d):
         raise NotImplementedError()
@@ -95,8 +96,9 @@ class NeRFRenderer(nn.Module):
             self.local_step += 1
 
             xyzs, dirs, deltas, rays = raymarching.march_rays_train(rays_o, rays_d, self.bound, self.density_bitfield, self.cascade, self.grid_size, nears, fars, counter, self.mean_count, perturb, 128, force_all_rays, dt_gamma, max_steps)
-            
+
             sigmas, rgbs = self(xyzs, dirs)
+
             # density_outputs = self.density(xyzs) # [M,], use a dict since it may include extra things, like geo_feat for rgb.
             # sigmas = density_outputs['sigma']
             # rgbs = self.color(xyzs, dirs, **density_outputs)
@@ -104,26 +106,11 @@ class NeRFRenderer(nn.Module):
 
             #print(f'valid RGB query ratio: {mask.sum().item() / mask.shape[0]} (total = {mask.sum().item()})')
 
-            # special case for CCNeRF's residual learning
-            if len(sigmas.shape) == 2:
-                K = sigmas.shape[0]
-                depths = []
-                images = []
-                for k in range(K):
-                    weights_sum, depth, image = raymarching.composite_rays_train(sigmas[k], rgbs[k], deltas, rays, T_thresh)
-                    image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
-                    depth = torch.clamp(depth - nears, min=0) / (fars - nears)
-                    images.append(image.view(*prefix, 3))
-                    depths.append(depth.view(*prefix))
-            
-                depth = torch.stack(depths, axis=0) # [K, B, N]
-                image = torch.stack(images, axis=0) # [K, B, N, 3]
-            else:
-                weights_sum, depth, image = raymarching.composite_rays_train(sigmas, rgbs, deltas, rays, T_thresh)
-                image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
-                depth = torch.clamp(depth - nears, min=0) / (fars - nears)
-                image = image.view(*prefix, 3)
-                depth = depth.view(*prefix)
+            weights_sum, depth, image = raymarching.composite_rays_train(sigmas.to(torch.float32), rgbs.to(torch.float32), deltas, rays, T_thresh)
+            image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
+            depth = torch.clamp(depth - nears, min=0) / (fars - nears)
+            image = image.view(*prefix, 3)
+            depth = depth.view(*prefix)
             
             results['weights_sum'] = weights_sum
 
@@ -282,7 +269,7 @@ class NeRFRenderer(nn.Module):
                             sigmas = self.density(cas_xyzs)['sigma'].reshape(-1).detach()
                             sigmas *= self.density_scale
                             # assign 
-                            tmp_grid[cas, indices] = sigmas
+                            tmp_grid[cas, indices] = sigmas.to(torch.float32)
 
         # partial update (half the computation)
         # TODO: why no need of maxpool ?

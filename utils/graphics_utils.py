@@ -67,11 +67,10 @@ def get_rays(poses, intrinsics, H, W, N=-1, error_map=None, patch_size=1):
 
         i = torch.gather(i, -1, inds)
         j = torch.gather(j, -1, inds)
-
-        results['inds'] = inds
-
     else:
         inds = torch.arange(H*W, device=device).expand([B, H*W])
+
+    results['inds'] = inds
 
     zs = torch.ones_like(i)
     xs = (i - cx) / fx * zs
@@ -124,3 +123,16 @@ def rand_poses(size, device, radius=1, theta_range=[np.pi/3, 2*np.pi/3], phi_ran
     poses[:, :3, 3] = centers
 
     return poses
+
+
+# ref: https://github.com/NVlabs/instant-ngp/blob/b76004c8cf478880227401ae763be4c02f80b62f/include/neural-graphics-primitives/nerf_loader.h#L50
+def nerf_matrix_to_ngp(pose, scale=0.33, offset=[0, 0, 0]):
+    # for the fox dataset, 0.33 scales camera radius to ~ 2
+    new_pose = np.array([
+        [pose[1, 0], -pose[1, 1], -pose[1, 2], pose[1, 3] * scale + offset[0]],
+        [pose[2, 0], -pose[2, 1], -pose[2, 2], pose[2, 3] * scale + offset[1]],
+        [pose[0, 0], -pose[0, 1], -pose[0, 2], pose[0, 3] * scale + offset[2]],
+        [0, 0, 0, 1],
+    ], dtype=np.float32)
+
+    return new_pose
