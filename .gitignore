@@ -1,3 +1,4 @@
 /datasets/*
+!/datasets/*.*
 /load_module.sh
 /submodules/raymarching/build/*
