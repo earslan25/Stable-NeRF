@@ -1,4 +1,7 @@
 /datasets/*
 !/datasets/*.*
 /load_module.sh
-/submodules/raymarching/build/*
+build/
+__pycache__/
+*.pyc
+*.pyo
