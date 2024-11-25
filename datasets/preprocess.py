@@ -13,6 +13,10 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
+import sys
+sys.path.append(os.getcwd() + "/utils")
+from graphics_utils import nerf_matrix_to_ngp
+
 
 def preprocess_images(images: np.ndarray, shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     """
@@ -50,10 +54,10 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     
     outputs:
         images: preprocessed images (image set, images in set, channel, x, y).
-        poses: camera matrix as a 3x4, where the last row is the identity (image set, images in set, channel, x, y).
+        poses: camera matrix as a 4x4, where the last row is the identity (image set, images in set, channel, x, y).
     """
 
-    print("[preprocess.py] WARNING: The NeRF dataset is pretty poorly formatted/documented and has very limited examples. For general testing, it is probably best to use the objaverse dataset. This function will provide 106 images/camera poses of the lego tractor.")
+    print("[preprocess.py] WARNING: The NeRF dataset is poorly formatted/documented and has limited examples. For general testing, it is best to use the objaverse dataset. Otherwise, this function will provide 106 images/camera poses of the lego tractor.")
 
     # ensure directories exist
     if not os.path.isdir(os.getcwd() + "/datasets/nerf"):
@@ -70,7 +74,11 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     images = preprocess_images(images, shape, mean, std)
 
     # preprocess poses
-    poses = torch.from_numpy(poses[:,:-1,:]) # remove unnecessary last row
+    poses = poses[:,:-1,:] # remove unnecessary last row
+    npg_poses = []
+    for i in range(len(poses)):
+        npg_poses.append(nerf_matrix_to_ngp(poses[i]))
+    poses = torch.from_numpy(np.array(npg_poses))
 
     return images.unsqueeze(0), poses.unsqueeze(0)
 
@@ -86,7 +94,7 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
     
     outputs:
         images: preprocessed images (image set, images in set, channel, x, y).
-        poses: camera matrix as a 3x4, where the last row is the identity (image set, images in set, channel, x, y).
+        poses: camera matrix as a 4x4, where the last row is the identity (image set, images in set, channel, x, y).
     """
 
     dataset_path = os.getcwd() + "/datasets/objaverse/views_release"
@@ -104,7 +112,8 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
                 image = Image.open(f"{dataset_path}/{image_set_path}/{i:03d}.png")
                 image = np.array(image.convert("RGB")) / 255.
                 images.append(image)
-                poses.append(np.load(f"{dataset_path}/{image_set_path}/{i:03d}.npy"))
+                pose = np.load(f"{dataset_path}/{image_set_path}/{i:03d}.npy")
+                poses.append(nerf_matrix_to_ngp(pose))
             image_sets.append(np.array(images))
             pose_sets.append(np.array(poses))
         except:
@@ -134,7 +143,7 @@ def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.
     
     outputs:
         images: preprocessed images as a pytorch tensor (image set, images in set, channel, image).
-        poses: camera matrix as a 3x4 pytorch tensor, where the last row is the identity (image set, images in set, camera matrix).
+        poses: camera matrix as a 4x4 pytorch tensor, where the last row is the identity (image set, images in set, camera matrix).
     """
 
     if dataset == "nerf":
@@ -146,8 +155,11 @@ def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.
     
 
 if __name__ == "__main__":
+    """
+    Testing functions work..
+    """
+
     print("[preprocess.py] Testing")
     images, poses = load_data(dataset="objaverse")
-
     print(images.shape)
     print(poses.shape)
