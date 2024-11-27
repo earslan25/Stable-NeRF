@@ -26,11 +26,11 @@ def generate_image_with_sdxl_dual_encoders(
     num_steps = 50,
     scaling_factor = None,
     seed = 42,
+    device = torch.device("cuda"),
     guidance_scale = 1.0
 ):
 
     # Set device and random seed
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(seed)
 
     # [CH] Set VAE scaling factor, *scale up* the latent before passing to vae decoder
@@ -365,6 +365,10 @@ def _maybe_convert_prompt(prompt, tokenizer):
 if __name__ == "__main__":
 
     # Load components
+    model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+    scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_id, subfolder="tokenizer", use_fast=False
     )
@@ -383,9 +387,7 @@ if __name__ == "__main__":
     unet = UNet2DConditionModel.from_pretrained(
         model_id, subfolder="unet", torch_dtype=torch.float16
     ).to(device)
-    model_id = "stabilityai/stable-diffusion-xl-base-1.0"
-    scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
-
+    
     # Condition 1
     prompt = "A futuristic cityscape at sunset, highly detailed, vibrant colors"
     # Condition 2
@@ -411,5 +413,6 @@ if __name__ == "__main__":
         num_steps=50,  # Increased steps for better quality
         scaling_factor=0.18215,  # Example scaling factor
         guidance_scale=10.0,
-        output_file="1234.png"
+        device=device,
+        output_file="1234.png",
     )
