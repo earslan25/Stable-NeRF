@@ -138,5 +138,5 @@ def test_multi_channel_nerf():
     assert not torch.allclose(losses['l2'], losses_new['l2'])
 
 if __name__ == "__main__":
-    # test_nerf()  # requires compiling with num channels 3
-    test_multi_channel_nerf()  # requires compiling with num channels 4
+    test_nerf()  
+    test_multi_channel_nerf() 

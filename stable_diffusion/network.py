@@ -1,5 +1,5 @@
 import torch
-from diffusers import AutoencoderKL, UNet2DConditionModel
+from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from transformers import CLIPVisionModelWithProjection, CLIPTextModel, CLIPTokenizer, CLIPTextModelWithProjection
 
 from .ip_adapter.ip_adapter import ImageProjModel
@@ -12,15 +12,19 @@ else:
 
 class SDNetwork(torch.nn.Module):
 
-    def __init__(self, pretrained_models_path, image_encoder_path):
+    def __init__(self, pretrained_models_path, image_encoder_path, channel_dim=4):
         super(SDNetwork, self).__init__()
-        self.vae = AutoencoderKL.from_pretrained(pretrained_models_path, subfolder="vae")
+        vae_config = AutoencoderKL.load_config(pretrained_models_path, subfolder="vae")
+        vae_config['latent_channels'] = channel_dim
+        self.vae = AutoencoderKL.from_config(vae_config)
         self.vae.requires_grad_(False)
-        self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(image_encoder_path)
-        self.image_encoder.requires_grad_(False)
         self.unet = UNet2DConditionModel.from_pretrained(pretrained_models_path, subfolder="unet")
         self.unet.requires_grad_(False)
+        self.noise_scheduler = DDPMScheduler.from_pretrained(pretrained_models_path, subfolder="scheduler")
+        self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(image_encoder_path)
+        self.image_encoder.requires_grad_(False)
         self.init_ip_modules()
+
 
         tokenizer = CLIPTokenizer.from_pretrained(pretrained_models_path, subfolder="tokenizer")
         text_encoder = CLIPTextModel.from_pretrained(pretrained_models_path, subfolder="text_encoder")
@@ -63,6 +67,7 @@ class SDNetwork(torch.nn.Module):
         self.unet.set_attn_processor(attn_procs)
         self.adapter_modules = torch.nn.ModuleList(self.unet.attn_processors.values())
 
+    @torch.no_grad()
     def init_empty_prompts(self, tokenizer, text_encoder, tokenizer_2, text_encoder_2):
         missing_prompt = ""
         text_input_ids = tokenizer(
@@ -99,6 +104,11 @@ class SDNetwork(torch.nn.Module):
         images = self.vae.decode(latents).sample
         
         return images
+
+    def clip_encode_images(self, images):
+        image_embeds = self.image_encoder(images).image_embeds
+        
+        return image_embeds
 
     def forward(self, noisy_latents, timesteps, encoder_hidden_states, image_embeds):
         ip_tokens = self.image_proj_model(image_embeds)

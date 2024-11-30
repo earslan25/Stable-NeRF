@@ -6,6 +6,10 @@ from utils.graphics_utils import get_rays
 class StableNeRFDataset(torch.utils.data.Dataset):
     
     def __init__(self, dataset_name, shape=(512, 512), encoded_shape=(128, 128), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+        if isinstance(shape, int):
+            shape = (shape, shape)
+        if isinstance(encoded_shape, int):
+            encoded_shape = (encoded_shape, encoded_shape)
         self.H, self.W = shape
         self.encoded_H, self.encoded_W = encoded_shape
         # intrinsic/focal ?

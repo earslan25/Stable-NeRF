@@ -109,7 +109,7 @@ class NeRFRenderer(nn.Module):
 
             #print(f'valid RGB query ratio: {mask.sum().item() / mask.shape[0]} (total = {mask.sum().item()})')
 
-            weights_sum, depth, image = raymarching.composite_rays_train(sigmas.to(torch.float32), rgbs.to(torch.float32), deltas, rays, T_thresh)
+            weights_sum, depth, image = raymarching.composite_rays_train(sigmas.to(torch.float32), rgbs.to(torch.float32), deltas, rays, T_thresh, self.channel_dim)
             image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
             depth = torch.clamp(depth - nears, min=0) / (fars - nears)
             image = image.view(*prefix, self.channel_dim)

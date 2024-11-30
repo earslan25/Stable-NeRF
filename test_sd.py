@@ -3,11 +3,13 @@ from stable_diffusion.network import SDNetwork
 
 
 def test_sd():
-    device = 'cuda'
+    # device = 'cuda'
+    device = 'cpu'
     pretrained_models_path = 'stabilityai/stable-diffusion-xl-base-1.0'
     image_encoder_path = 'openai/clip-vit-large-patch14'
 
-    network = SDNetwork(pretrained_models_path, image_encoder_path).to(device)
+    channel_dim = 4
+    network = SDNetwork(pretrained_models_path, image_encoder_path, channel_dim=channel_dim).to(device)
 
     dummy_img = torch.randn(1, 3, 512, 512, device=device)
     dummy_latent = network.encode_images(dummy_img)
