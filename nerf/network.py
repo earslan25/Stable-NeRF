@@ -9,11 +9,12 @@ from .config import BaseNeRFConfig
 class NeRFNetwork(NeRFRenderer):
     def __init__(self,
                  config=BaseNeRFConfig().as_dict(),
+                 channel_dim=3, # color vs latent
                  geo_feat_dim=15,
                  bound=1,
                  **kwargs
                  ):
-        super().__init__(bound, **kwargs)
+        super().__init__(bound, channel_dim, **kwargs)
 
         # sigma network
         self.geo_feat_dim = geo_feat_dim
@@ -30,14 +31,13 @@ class NeRFNetwork(NeRFRenderer):
         )
 
         self.color_net = tcnn.Network(
-            self.encoder_dir.n_output_dims + self.geo_feat_dim, 3,
+            self.encoder_dir.n_output_dims + self.geo_feat_dim, self.channel_dim,
             config["network_color"]
         )
 
     def forward(self, x, d):
         # x: [N, 3], in [-bound, bound]
         # d: [N, 3], nomalized in [-1, 1]
-
         # sigma
         x = (x + self.bound) / (2 * self.bound) # to [0, 1]
         h = self.sigma_net(x)
@@ -74,6 +74,9 @@ class NeRFNetwork(NeRFRenderer):
             'geo_feat': geo_feat,
         }
 
+    """
+    Functions below are for images currently
+    """
     # allow masked inference
     def color(self, x, d, mask=None, geo_feat=None, **kwargs):
         # x: [N, 3] in [-bound, bound]
@@ -133,14 +136,15 @@ class NeRFNetwork(NeRFRenderer):
             bg_color = 1
         # train with random background color if not using a bg model and has alpha channel.
         else:
-            bg_color = torch.ones(3, device=self.device) # [3], fixed white background
+            bg_color = torch.ones(self.channel_dim, device=images.device) # [3], fixed white background
             # bg_color = torch.rand(3, device=self.device) # [3], frame-wise random.
             # bg_color = torch.rand_like(images[..., :3]) # [N, 3], pixel-wise random.
 
-        if C == 4:
-            gt_rgb = images[..., :3] * images[..., 3:] + bg_color * (1 - images[..., 3:])
-        else:
-            gt_rgb = images
+        # if C == 4:
+        #     gt_rgb = images[..., :3] * images[..., 3:] + bg_color * (1 - images[..., 3:])
+        # else:
+        #     gt_rgb = images
+        gt_rgb = images
 
         outputs = self.render(rays_o, rays_d, bg_color=bg_color, **kwargs)
     
@@ -188,14 +192,15 @@ class NeRFNetwork(NeRFRenderer):
 
         # eval with fixed background color
         bg_color = 1
-        if C == 4:
-            gt_rgb = images[..., :3] * images[..., 3:] + bg_color * (1 - images[..., 3:])
-        else:
-            gt_rgb = images
-        
+        # if C == 4:
+        #     gt_rgb = images[..., :3] * images[..., 3:] + bg_color * (1 - images[..., 3:])
+        # else:
+        #     gt_rgb = images
+        gt_rgb = images
+
         outputs = self.render(rays_o, rays_d, bg_color=bg_color, perturb=False, **kwargs)
 
-        pred_rgb = outputs['image'].reshape(B, H, W, 3)
+        pred_rgb = outputs['image'].reshape(B, H, W, self.channel_dim)
         pred_depth = outputs['depth'].reshape(B, H, W)
 
         losses = None
@@ -214,7 +219,7 @@ class NeRFNetwork(NeRFRenderer):
 
         outputs = self.render(rays_o, rays_d, bg_color=bg_color, **kwargs)
 
-        pred_rgb = outputs['image'].reshape(-1, H, W, 3)
+        pred_rgb = outputs['image'].reshape(-1, H, W, self.channel_dim)
         pred_depth = outputs['depth'].reshape(-1, H, W)
 
         return pred_rgb, pred_depth

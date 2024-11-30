@@ -238,7 +238,7 @@ march_rays_train = _march_rays_train.apply
 class _composite_rays_train(Function):
     @staticmethod
     @custom_fwd(cast_inputs=torch.float32)
-    def forward(ctx, sigmas, rgbs, deltas, rays, T_thresh=1e-4):
+    def forward(ctx, sigmas, rgbs, deltas, rays, T_thresh=1e-4, num_channels=4):
         ''' composite rays' rgbs, according to the ray marching formula.
         Args:
             rgbs: float, [M, 3]
@@ -259,7 +259,7 @@ class _composite_rays_train(Function):
 
         weights_sum = torch.empty(N, dtype=sigmas.dtype, device=sigmas.device)
         depth = torch.empty(N, dtype=sigmas.dtype, device=sigmas.device)
-        image = torch.empty(N, 3, dtype=sigmas.dtype, device=sigmas.device)
+        image = torch.empty(N, num_channels, dtype=sigmas.dtype, device=sigmas.device)
 
         _backend.composite_rays_train_forward(sigmas, rgbs, deltas, rays, M, N, T_thresh, weights_sum, depth, image)
 
