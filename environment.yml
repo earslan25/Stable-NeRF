@@ -20,4 +20,8 @@ dependencies:
     - matplotlib
     - plyfile
     - tqdm
+    - diffusers
+    - transformers 
+    - accelerate
+    - einops
 

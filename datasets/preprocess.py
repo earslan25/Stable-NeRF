@@ -80,7 +80,7 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         npg_poses.append(nerf_matrix_to_ngp(poses[i]))
     poses = torch.from_numpy(np.array(npg_poses))
 
-    return images.unsqueeze(0), poses.unsqueeze(0)
+    return images, poses
 
 
 def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):

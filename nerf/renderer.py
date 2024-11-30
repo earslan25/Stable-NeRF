@@ -8,6 +8,7 @@ import submodules.raymarching as raymarching
 class NeRFRenderer(nn.Module):
     def __init__(self,
                  bound=1,
+                 channel_dim=3, # color vs latent
                  density_scale=1, # scale up deltas (or sigmas), to make the density grid more sharp. larger value than 1 usually improves performance.
                  min_near=0.2,
                  density_thresh=0.01,
@@ -15,6 +16,8 @@ class NeRFRenderer(nn.Module):
                  ):
         super().__init__()
 
+        # TODO use this
+        self.channel_dim = channel_dim
         self.bound = bound
         self.cascade = 1 + math.ceil(math.log2(bound))
         self.grid_size = 128
@@ -89,6 +92,7 @@ class NeRFRenderer(nn.Module):
 
         results = {}
 
+        # TODO make color dims latent dims
         if self.training:
             # setup counter
             counter = self.step_counter[self.local_step % 16]
@@ -96,7 +100,6 @@ class NeRFRenderer(nn.Module):
             self.local_step += 1
 
             xyzs, dirs, deltas, rays = raymarching.march_rays_train(rays_o, rays_d, self.bound, self.density_bitfield, self.cascade, self.grid_size, nears, fars, counter, self.mean_count, perturb, 128, force_all_rays, dt_gamma, max_steps)
-
             sigmas, rgbs = self(xyzs, dirs)
 
             # density_outputs = self.density(xyzs) # [M,], use a dict since it may include extra things, like geo_feat for rgb.
@@ -109,13 +112,12 @@ class NeRFRenderer(nn.Module):
             weights_sum, depth, image = raymarching.composite_rays_train(sigmas.to(torch.float32), rgbs.to(torch.float32), deltas, rays, T_thresh)
             image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
             depth = torch.clamp(depth - nears, min=0) / (fars - nears)
-            image = image.view(*prefix, 3)
+            image = image.view(*prefix, self.channel_dim)
             depth = depth.view(*prefix)
             
             results['weights_sum'] = weights_sum
 
         else:
-           
             # allocate outputs 
             # if use autocast, must init as half so it won't be autocasted and lose reference.
             # dtype = torch.half if torch.is_autocast_enabled() else torch.float32
@@ -124,7 +126,7 @@ class NeRFRenderer(nn.Module):
             
             weights_sum = torch.zeros(N, dtype=dtype, device=device)
             depth = torch.zeros(N, dtype=dtype, device=device)
-            image = torch.zeros(N, 3, dtype=dtype, device=device)
+            image = torch.zeros(N, self.channel_dim, dtype=dtype, device=device)
             
             n_alive = N
             rays_alive = torch.arange(n_alive, dtype=torch.int32, device=device) # [N]
@@ -162,7 +164,7 @@ class NeRFRenderer(nn.Module):
 
             image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
             depth = torch.clamp(depth - nears, min=0) / (fars - nears)
-            image = image.view(*prefix, 3)
+            image = image.view(*prefix, self.channel_dim)
             depth = depth.view(*prefix)
         
         results['depth'] = depth

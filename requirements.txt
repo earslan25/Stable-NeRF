@@ -6,3 +6,7 @@ submodules/raymarching
 matplotlib
 plyfile
 tqdm
+diffusers
+transformers
+accelerate
+einops
