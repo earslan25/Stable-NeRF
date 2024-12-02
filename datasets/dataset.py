@@ -17,6 +17,7 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         images, poses = load_data(dataset=dataset_name, shape=shape, mean=mean, std=std)
         shuffle_indices = torch.randperm(images.shape[0])
         self.intrinsic = torch.tensor([128.0, 128.0, self.encoded_W // 2, self.encoded_H // 2])
+        # currently generating rays in cpu, could be optimized to use gpu but will need to be moved back for memory reasons
         self.reference_images = images
         self.reference_poses = poses
         self.reference_rays = get_rays(self.reference_poses, self.intrinsic, self.encoded_H, self.encoded_W)
@@ -30,12 +31,12 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         reference_image = self.reference_images[idx]
         reference_pose = self.reference_poses[idx]
 
-        target_rays_o = self.target_rays['rays_o']
-        target_rays_d = self.target_rays['rays_d']
-        target_rays_inds = self.target_rays['inds']
-        reference_rays_o = self.reference_rays['rays_o']
-        reference_rays_d = self.reference_rays['rays_d']
-        reference_rays_inds = self.reference_rays['inds']
+        target_rays_o = self.target_rays['rays_o'][idx]
+        target_rays_d = self.target_rays['rays_d'][idx]
+        target_rays_inds = self.target_rays['inds'][idx]
+        reference_rays_o = self.reference_rays['rays_o'][idx]
+        reference_rays_d = self.reference_rays['rays_d'][idx]
+        reference_rays_inds = self.reference_rays['inds'][idx]
 
         return {
             "target_image": target_image,
@@ -57,10 +58,9 @@ class StableNeRFDataset(torch.utils.data.Dataset):
 def collate_fn(data):
     # Initialize a dictionary to hold the batched data
     batched_data = {}
-
     # Loop through each key in the dictionary of the first sample
     for key in data[0].keys():
         # Stack all the values for the current key across the batch
         batched_data[key] = torch.stack([sample[key] for sample in data], dim=0)
-    
+
     return batched_data

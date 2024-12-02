@@ -16,6 +16,8 @@ def test_nerf():
     rand_image = torch.zeros((B, H, W, 3)).to(device)
     rand_cam = rand_poses(B, device, radius=5)
     fx, fy, cx, cy = 64, 64, W // 2, H // 2
+    nerf.mark_untrained_grid(rand_cam, (fx, fy, cx, cy))
+    nerf.update_extra_state()
     with torch.no_grad():
         rays = get_rays(rand_cam, (fx, fy, cx, cy), H, W)
         rand_image = torch.gather(rand_image.view(B, -1, 3), 1, torch.stack(3 * [rays['inds']], -1)) # for training
@@ -32,9 +34,6 @@ def test_nerf():
         print(psnr(res_image, gt_image))
 
         print(ssim(res_image.reshape((-1, 3, H, W)), gt_image.reshape((-1, 3, H, W))))
-
-    nerf.mark_untrained_grid(rand_cam, (fx, fy, cx, cy))
-    nerf.update_extra_state()
 
     data = {}
     rays = get_rays(rand_cam, (fx, fy, cx, cy), H, W)
