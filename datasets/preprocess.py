@@ -18,6 +18,26 @@ sys.path.append(os.getcwd() + "/utils")
 from graphics_utils import nerf_matrix_to_ngp
 
 
+def construct_normalized_camera_intrinsics(image_shape, focal_length=50., skew=0.):
+    """
+    Returns a normalized camera intrinsics matrix.
+
+    inputs:
+        image_shape: image shape in pixels
+        focal_length: focal length in mm
+        skew: skew
+    """
+
+    sensor_width_mm = 36. # default blender value
+    focal_length_pixels = focal_length * (image_shape[0] / sensor_width_mm)
+
+    return torch.tensor([
+        [focal_length_pixels / image_shape[0], skew, 0.5],
+        [0, focal_length_pixels / image_shape[1], 0.5],
+        [0, 0, 1.],
+    ])
+
+
 def preprocess_images(images: np.ndarray, shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     """
     Takes as input a set of images as a numpy array and applies resizing and normalization.
@@ -54,7 +74,8 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     
     outputs:
         images: preprocessed images (image set, images in set, channel, x, y).
-        poses: camera matrix as a 4x4, where the last row is the identity (image set, images in set, channel, x, y).
+        poses: camera matrix as a 4x4 (image set, images in set, channel, x, y).
+        intrinsics: camera intrinsics matrix as a 3x3
     """
 
     print("[preprocess.py] WARNING: The NeRF dataset is poorly formatted/documented and has limited examples. For general testing, it is best to use the objaverse dataset. Otherwise, this function will provide 106 images/camera poses of the lego tractor.")
@@ -69,6 +90,7 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     data = np.load('datasets/nerf/tiny_nerf_data.npz', allow_pickle=True)
     images = data['images']
     poses = data['poses']
+    focal = data['focal']
 
     # preprocess images
     images = preprocess_images(images, shape, mean, std)
@@ -80,7 +102,10 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
         npg_poses.append(nerf_matrix_to_ngp(poses[i]))
     poses = torch.from_numpy(np.array(npg_poses))
 
-    return images, poses
+    # normalized camera intrinsics matrix
+    intrinsic = construct_normalized_camera_intrinsics(shape, focal)
+
+    return images, poses, intrinsic
 
 
 def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
@@ -128,22 +153,26 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
     # preprocess poses
     pose_sets = np.array(pose_sets)
 
-    return preprocessed_image_sets, pose_sets
+    # normalized camera intrinsics matrix
+    intrinsic = construct_normalized_camera_intrinsics(shape)
+
+    return preprocessed_image_sets, pose_sets, intrinsic
 
 
 def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     """
-    Preprocesses data into img+cam pairs (reference and target).
+    Preprocesses data into img+pose groups (used as references and target).
     
     inputs:
         dataset (str): which dataset to get images from ["nerf", "objaverse"]
-        shape: the new shape to resize images.
-        mean: the mean for normalization.
-        std: the std for normalization.
+        shape: shape to resize images.
+        mean: mean for image normalization.
+        std: std for image normalization.
     
     outputs:
-        images: preprocessed images as a pytorch tensor (image set, images in set, channel, image).
-        poses: camera matrix as a 4x4 pytorch tensor, where the last row is the identity (image set, images in set, camera matrix).
+        images: preprocessed images as a pytorch tensor (image set, image, channel, pixels).
+        poses: rotation/translation matrix (image set, image, rotation/translation matrix).
+
     """
 
     if dataset == "nerf":
@@ -156,7 +185,7 @@ def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.
 
 if __name__ == "__main__":
     """
-    Testing functions work..
+    Testing.
     """
 
     print("[preprocess.py] Testing")
