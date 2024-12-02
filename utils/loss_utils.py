@@ -14,6 +14,10 @@ def l2_loss(network_output, gt):
     return ((network_output - gt) ** 2).mean()
 
 
+def mse_loss(network_output, gt):
+    return ((network_output - gt) ** 2).mean()
+
+
 def mse(img1, img2):
     return (((img1 - img2)) ** 2).view(img1.shape[0], -1).mean(1, keepdim=True)
 

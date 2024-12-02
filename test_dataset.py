@@ -27,10 +27,6 @@ def test_dataset():
     for batch in train_dataloader:
         for key in batch.keys():
             print(key, batch[key].shape)
-            if key == 'target_image':
-                print(batch[key].min(), batch[key].max(), batch[key].mean())
-            elif key == 'reference_image':
-                print(batch[key].min(), batch[key].max(), batch[key].mean())
         break
 
 

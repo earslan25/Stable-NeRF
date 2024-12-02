@@ -9,13 +9,14 @@ def test_sd():
     image_encoder_path = 'openai/clip-vit-large-patch14'
 
     channel_dim = 4
-    network = SDNetwork(pretrained_models_path, image_encoder_path, channel_dim=channel_dim).to(device)
-
-    dummy_img = torch.randn(1, 3, 512, 512, device=device)
-    dummy_latent = network.encode_images(dummy_img)
-    print(dummy_latent.shape)
-    dummy_img_recon = network.decode_latents(dummy_latent)
-    print(dummy_img_recon.shape)
+    network = SDNetwork(pretrained_models_path, image_encoder_path, channel_dim=channel_dim, cat_cam=False).to(device)
+    print(network.vae.config)
+    with torch.no_grad():
+        dummy_img = torch.randn(1, 3, 512, 512, device=device)
+        dummy_latent = network.encode_images(dummy_img)
+        print(dummy_latent.shape)
+        dummy_img_recon = network.decode_latents(dummy_latent)
+        print(dummy_img_recon.shape)
 
     print(dummy_img.min(), dummy_img.max(), dummy_img.mean())
     print(dummy_img_recon.min(), dummy_img_recon.max(), dummy_img_recon.mean())

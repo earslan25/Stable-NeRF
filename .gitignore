@@ -1,6 +1,7 @@
 /datasets/*
 !/datasets/*.*
 /load_module.sh
+.DS_Store
 build/
 __pycache__/
 *.pyc
