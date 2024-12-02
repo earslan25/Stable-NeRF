@@ -20,7 +20,8 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         images, poses, intrinsic = load_data(dataset=dataset_name, shape=shape, mean=mean, std=std)
         self.intrinsic = torch.tensor([intrinsic[0,0], intrinsic[1,1], intrinsic[0,2], intrinsic[1,2]])
         shuffle_indices = torch.randperm(images.shape[0])
-        self.intrinsic = torch.tensor([128.0, 128.0, self.encoded_W // 2, self.encoded_H // 2])
+        # self.intrinsic = torch.tensor([128.0, 128.0, self.encoded_W // 2, self.encoded_H // 2])
+
         # currently generating rays in cpu, could be optimized to use gpu but will need to be moved back for memory reasons
         self.reference_images = images
         self.reference_poses = poses
