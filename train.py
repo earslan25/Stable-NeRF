@@ -10,10 +10,8 @@ from utils.loss_utils import *
 from utils.system_utils import get_memory_usage
 
 # TODO
-# resolve hacks (fit latents to clip/image projector dims) -> chia-hong
 # argparser -> daniel
 # distributed training setup -> emre
-# do training -> chia-hong
 # prep dataset for objaverse -> emre
 # visualize/plot results -> daniel
 
