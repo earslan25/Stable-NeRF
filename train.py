@@ -9,6 +9,15 @@ from utils.graphics_utils import *
 from utils.loss_utils import *
 from utils.system_utils import get_memory_usage
 
+# TODO
+# resolve hacks (fit latents to clip/image projector dims) -> chia-hong
+# validate loaded weights when channel_dim=3 -> chia-hong
+# argparser -> daniel
+# distributed training setup -> emre
+# do training -> chia-hong
+# prep dataset for objaverse -> emre
+# visualize/plot results -> daniel
+
 
 def training(data_args, model_args, opt_args):
     device = torch.device("cuda")
@@ -28,6 +37,7 @@ def training(data_args, model_args, opt_args):
     max_steps = 4  # reduced from 1024 for memory reasons during testing
 
     # hardcoded, could not find where to get these from
+    # [CH] default latent dimension encoded by sd's vae is: 4x(H/8)x(W/8)
     encoder_input_dim = 512  
     encoder_output_dim = 64  
     clip_text_output_dim = 768
@@ -55,9 +65,14 @@ def training(data_args, model_args, opt_args):
             target_image = batch['target_image'].to(device)
             reference_image = batch['reference_image'].to(device)
 
+            #print(target_image.shape) # [CH] bs, 3, 512, 512
+            #print(reference_image.shape) # [CH] bs, 3, 512, 512
+
             with torch.no_grad():
                 target_image = sd.encode_images(target_image)  # latent space
                 reference_image = sd.encode_images(reference_image)  # latent space
+                #print(target_image.shape) # [CH] bs, 3, 64, 64
+                #print(reference_image.shape) # [CH] bs, 3, 64, 64
 
             # allocate if needed
             if cat_cam:
