@@ -14,20 +14,23 @@ else:
 
 class SDNetwork(torch.nn.Module):
 
-    def __init__(self, pretrained_models_path, image_encoder_path, channel_dim=4, cat_cam=True):
+    def __init__(self, pretrained_models_path, image_encoder_path, channel_dim=4, cat_cam=True,from_pretrained=False):
         super(SDNetwork, self).__init__()
-        vae_config = AutoencoderKL.load_config(pretrained_models_path, subfolder="vae")
-        vae_config['latent_channels'] = channel_dim
+        if from_pretrained: # [CH] added from_pretrained, I think this is what we want
+            self.vae = AutoencoderKL.from_pretrained(pretrained_models_path, subfolder="vae")
+        else:
+            vae_config = AutoencoderKL.load_config(pretrained_models_path, subfolder="vae")
+            vae_config['latent_channels'] = channel_dim
+            self.vae = AutoencoderKL.from_config(vae_config)
         self.channel_dim = channel_dim
         self.cat_cam = cat_cam
-        self.vae = AutoencoderKL.from_config(vae_config)
         self.vae.requires_grad_(False)
         unet_config = UNet2DConditionModel.load_config(pretrained_models_path, subfolder="unet")
         unet_config['in_channels'] = channel_dim
         unet_config['out_channels'] = channel_dim
         unet_config['addition_embed_type'] = "text"
         self.unet = UNet2DConditionModel.from_config(unet_config)
-        # self.unet.config.addition_embed_type = "text"
+        self.unet.config.addition_embed_type = "text"
         self.unet.requires_grad_(False)
         self.noise_scheduler = DDPMScheduler.from_pretrained(pretrained_models_path, subfolder="scheduler")
         self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(image_encoder_path)
