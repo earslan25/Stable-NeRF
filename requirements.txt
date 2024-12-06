@@ -10,4 +10,4 @@ diffusers
 transformers
 accelerate
 einops
-
+pathlib

@@ -5,7 +5,15 @@ from utils.graphics_utils import get_rays
 
 class StableNeRFDataset(torch.utils.data.Dataset):
     
-    def __init__(self, dataset_name, shape=(512, 512), encoded_shape=(128, 128), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+    def __init__(
+        self, 
+        dataset_name, 
+        shape=(512, 512), 
+        encoded_shape=(128, 128), 
+        mean=[0.5, 0.5, 0.5], 
+        std=[0.5, 0.5, 0.5],
+        cache_cuda=False,
+    ):
         
         if isinstance(shape, int):
             shape = (shape, shape)
@@ -18,16 +26,22 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         # intrinsic/focal ?
         # ideally this would be a set of objects from different datasets, that is we shuffle images to create pairs
         images, poses, intrinsic = load_data(dataset=dataset_name, shape=shape, mean=mean, std=std)
+        print(images.shape, poses.shape, intrinsic.shape)
         self.intrinsic = torch.tensor([intrinsic[0,0], intrinsic[1,1], intrinsic[0,2], intrinsic[1,2]])
         shuffle_indices = torch.randperm(images.shape[0])
         # self.intrinsic = torch.tensor([128.0, 128.0, self.encoded_W // 2, self.encoded_H // 2])
 
-        # currently generating rays in cpu, could be optimized to use gpu but will need to be moved back for memory reasons
         self.reference_images = images
-        self.reference_poses = poses
-        self.reference_rays = get_rays(self.reference_poses, self.intrinsic, self.encoded_H, self.encoded_W)
         self.target_images = images[shuffle_indices]
+
+        self.reference_poses = poses
         self.target_poses = poses[shuffle_indices]
+        # cuda rays and poses
+        if cache_cuda:
+            self.intrinsic = self.intrinsic.cuda()
+            self.reference_poses = self.reference_poses.cuda()
+            self.target_poses = self.target_poses.cuda()
+        self.reference_rays = get_rays(self.reference_poses, self.intrinsic, self.encoded_H, self.encoded_W)
         self.target_rays = get_rays(self.target_poses, self.intrinsic, self.encoded_H, self.encoded_W)
 
     def __getitem__(self, idx):
