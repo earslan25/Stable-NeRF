@@ -8,9 +8,9 @@ def test_sd():
     pretrained_models_path = 'stabilityai/stable-diffusion-xl-base-1.0'
     image_encoder_path = 'openai/clip-vit-large-patch14'
 
-    channel_dim = 4
+    channel_dim = 3
     network = SDNetwork(pretrained_models_path, image_encoder_path, channel_dim=channel_dim, cat_cam=False).to(device)
-    print(network.vae.config)
+    # print(network.vae.config)
     with torch.no_grad():
         dummy_img = torch.randn(1, 3, 512, 512, device=device)
         dummy_latent = network.encode_images(dummy_img)

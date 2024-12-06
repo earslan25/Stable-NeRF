@@ -4,7 +4,7 @@ from datasets.dataset import StableNeRFDataset, collate_fn
 
 def test_dataset():
     batch_size = 2
-    dataset = StableNeRFDataset(dataset_name='nerf', shape=(512, 512), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+    dataset = StableNeRFDataset(dataset_name='objaverse', shape=(512, 512), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     print(dataset.intrinsic.shape)
     print(dataset.reference_images.shape)
     print(dataset.reference_poses.shape)

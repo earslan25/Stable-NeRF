@@ -130,12 +130,17 @@ class SDNetwork(torch.nn.Module):
         return image_embeds
 
     def forward(self, noisy_latents, timesteps, encoder_hidden_states, image_embeds):
+        """
+        image_embeds -> clip embed
+        encoder_hidden_states -> empty text embed
+        noisy_latents -> sd vae latents + noise
+        """
         ip_tokens = self.image_proj_model(image_embeds)
 
         # (batch, sequence_length, feature_dim), concatenated, the more prompts, the larger sequence_length 
         # encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=-1) 
         encoder_hidden_states = ip_tokens
-        
+    
         # Predict the noise residual
         noise_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample
 
