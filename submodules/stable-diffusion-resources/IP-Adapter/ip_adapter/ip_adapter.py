@@ -142,7 +142,7 @@ class IPAdapter:
             if isinstance(pil_image, Image.Image):
                 pil_image = [pil_image]
             clip_image = self.clip_image_processor(images=pil_image, return_tensors="pt").pixel_values
-            clip_image_embeds = self.image_encoder(clip_image.to(self.device, dtype=torch.float16)).image_embeds
+            clip_image_embeds = self.image_encoder(clip_image.to(self.device, dtype=torch.float16)).image_embeds #(N,D)
         else:
             clip_image_embeds = clip_image_embeds.to(self.device, dtype=torch.float16)
         image_prompt_embeds = self.image_proj_model(clip_image_embeds)
@@ -184,7 +184,7 @@ class IPAdapter:
         if not isinstance(negative_prompt, List):
             negative_prompt = [negative_prompt] * num_prompts
 
-        image_prompt_embeds, uncond_image_prompt_embeds = self.get_image_embeds(
+        image_prompt_embeds, uncond_image_prompt_embeds = self.get_image_embeds( # !?
             pil_image=pil_image, clip_image_embeds=clip_image_embeds
         )
         bs_embed, seq_len, _ = image_prompt_embeds.shape
