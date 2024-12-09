@@ -112,6 +112,6 @@ decoded_noise_pred = sd.decode_latents(noise_pred)
 print(decoded_noise_pred.shape)
 
 plt.figure()
-plt.imshow(decoded_noise_pred[0].numpy(), cmap='gray')
+plt.imshow(decoded_noise_pred[0].detach().numpy(), cmap='gray')
 plt.title("Decoded noise pred")
 plt.savefig(os.getcwd() + f"/cache/decoded_noise_pred.png")
