@@ -27,7 +27,10 @@ image_encoder_path = 'openai/clip-vit-large-patch14'
 
 # accelerator 
 accelerator_project_config = ProjectConfiguration(project_dir=output_dir, logging_dir=logging_dir)
-accelerator = Accelerator(project_config=accelerator_project_config)
+accelerator = Accelerator(
+    mixed_precision="fp16",
+    project_config=accelerator_project_config
+)
 device = accelerator.device
 
 # debug information
@@ -44,13 +47,13 @@ print("completed model instantiation")
 bg_color = torch.ones(sd.channel_dim, device=device)
 max_steps = 1 # originally 1024
 
-encoder_input_dim = 512  
+encoder_input_dim = 256
 encoder_output_dim = 64
 
 # dataset
 batch_size = 10
 dataset = StableNeRFDataset('nerf', shape=encoder_input_dim, encoded_shape=encoder_output_dim, cache_cuda=True)
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=10, shuffle=True, collate_fn=collate_fn)
+dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
 print("completed dataset loading")
 
@@ -161,10 +164,13 @@ for epoch in tqdm(range(epochs)):
             noisy_latents = sd.noise_scheduler.add_noise(reference_image, noise, timesteps)
 
             # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
+
+            temp = 256
+
             add_time_ids = [
-                torch.tensor([[512, 512]]).to(device),
+                torch.tensor([[temp, temp]]).to(device),
                 torch.tensor([[0, 0]]).to(device),
-                torch.tensor([[512, 512]]).to(device),
+                torch.tensor([[temp, temp]]).to(device),
             ]
             add_time_ids = torch.cat(add_time_ids, dim=1).to(device).repeat(batch_size,1)
             added_cond_kwargs = {"text_embeds":sd.pooled_empty_text_embeds.repeat(batch_size,1).to(device), "time_ids":add_time_ids}
