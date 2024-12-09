@@ -159,6 +159,7 @@ for epoch in tqdm(range(epochs)):
 
             # clean unneeded variables to free memory
             del noise, noise_pred
-            del sd_loss, nerf_loss, 
+            del sd_loss, nerf_loss
+            torch.cuda.empty_cache()
 
         # break
