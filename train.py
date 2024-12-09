@@ -2,6 +2,7 @@ import torch
 import itertools
 from tqdm import tqdm
 import gc
+import os
 import matplotlib.pyplot as plt
 
 from pathlib import Path
@@ -119,7 +120,14 @@ for epoch in tqdm(range(epochs)):
             nerf_loss = nerf_loss_0 + nerf_loss_1
 
             # TODO: visualizations here?
-            print("target latent shape: ", pred_target_latent.shape)
+
+            print("target latent shape: ", pred_target_latent.shape) # torch.Size([2, 4, 64, 64])
+            plt.imshow(pred_target_latent[0][0].cpu().numpy(), cmap='gray')
+            plt.title("Single Channel Image")
+            plt.axis('off')
+
+            plt.savefig(os.getcwd() + "cache/pred_target_latent_channel_0.png")
+
             
 
 
@@ -181,4 +189,5 @@ for epoch in tqdm(range(epochs)):
 
             # TODO: ... 
 
-        # break
+        # for now, stops memory issues
+        break
