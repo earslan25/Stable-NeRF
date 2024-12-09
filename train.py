@@ -51,10 +51,12 @@ print("completed model instantiation")
 bg_color = torch.ones(sd.channel_dim, device=device)
 max_steps = 1 # originally 1024
 
-encoder_input_dim = 256
+encoder_input_dim = 512
 encoder_output_dim = 64
 
-# TODO: be able to mess with these dimensions... 
+# TODO: 
+    # it may be that we can't?
+    # or at least without some more work, it's hard to tell where it's going wrong
 
 # dataset
 batch_size = 2
@@ -163,6 +165,9 @@ for epoch in tqdm(range(epochs)):
             noise_pred = sd(noisy_latents, timesteps, added_cond_kwargs, image_embeds)
 
             sd_loss = mse_loss(noise_pred.float(), noise.float())
+
+            # more visualizations
+            print(noise_pred.shape)
 
             # clean unneed variables to free memory
             del target_pose, reference_pose, target_latent_cat_cam, reference_latent_cat_cam
