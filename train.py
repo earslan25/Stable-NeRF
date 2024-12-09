@@ -84,7 +84,6 @@ for epoch in tqdm(range(epochs)):
     nerf.update_extra_state()
     for i, batch in enumerate(dataloader):
         
-        
         # start accumulation
         with accelerator.accumulate(sd, nerf):
             target_image = batch['target_image']
@@ -170,8 +169,9 @@ for epoch in tqdm(range(epochs)):
             # print(noise_pred.shape)
             # decoded_noise_pred = sd.decode_latents(noise_pred)
             # print(decoded_noise_pred.shape)
+            # torch.save(noise_pred, os.getcwd() + f"/cache/noise_pred.pt")
 
-            torch.save(noise_pred, os.getcwd() + f"/cache/noise_pred.pt")
+            # is it possible to pass this to the cpu??
 
 
 
