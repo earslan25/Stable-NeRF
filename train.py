@@ -122,11 +122,11 @@ for epoch in tqdm(range(epochs)):
             # TODO: visualizations here?
 
             print("target latent shape: ", pred_target_latent.shape) # torch.Size([2, 4, 64, 64])
-            plt.imshow(pred_target_latent[0][0].detach().cpu().numpy(), cmap='gray')
-            plt.title("Single Channel Image")
-            plt.axis('off')
-
-            plt.savefig(os.getcwd() + "/cache/pred_target_latent_channel_0.png")
+            for i in range(4):
+                plt.figure()
+                plt.imshow(pred_target_latent[0][i].detach().cpu().numpy(), cmap='gray')
+                plt.title("Single Channel Image")
+                plt.savefig(os.getcwd() + f"/cache/pred_target_latent_channel_{i}.png")
 
             
 
