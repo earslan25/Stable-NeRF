@@ -16,8 +16,7 @@ from utils.loss_utils import *
 
 # TODO:
     # 1. (DONE) figure out the memory issues
-
-    # 2. clean up the code
+    # 2. (DONE) clean up the code
     # 3. double check all the logic here 
 
 
@@ -162,10 +161,4 @@ for epoch in tqdm(range(epochs)):
             del noise, noise_pred
             del sd_loss, nerf_loss, 
 
-        break
-
-
-
-
-        
-
+        # break
