@@ -90,7 +90,7 @@ for epoch in tqdm(range(epochs)):
                 reference_image = sd.encode_images(reference_image)  # latent space
 
 
-            # nerf with ip adapter
+            # -- nerf with ip adapter --
 
             # target (novel view for conditioning and ip adaptor)
                 # NOTE: what does this do at a high level in our pipeline...
@@ -105,7 +105,7 @@ for epoch in tqdm(range(epochs)):
             pred_target_latent = pred_target_latent.view(batch_size, sd.channel_dim, encoder_output_dim, encoder_output_dim)
 
             # reference (reference view for reconstruction loss for nerf)
-                # NOTE: same as above
+                # NOTE: same question as above
             reference_pose = batch['reference_pose'].to(device).view(batch_size, -1)
             reference_rays_o, reference_rays_d, reference_rays_inds = batch['reference_rays_o'].to(device), batch['reference_rays_d'].to(device), batch['reference_rays_inds'].to(device)
             reference_image_gt = torch.gather(reference_image.view(batch_size, -1, sd.channel_dim), 1, torch.stack(sd.channel_dim * [reference_rays_inds], -1))
@@ -115,8 +115,13 @@ for epoch in tqdm(range(epochs)):
             # combine losses 
             nerf_loss = nerf_loss_0 + nerf_loss_1
 
+            # clean unneeded variables to free memory
+            del target_rays_o, target_rays_d, target_rays_inds, target_image_gt
+            del reference_rays_o, reference_rays_d, reference_rays_inds, reference_image_gt
+            torch.cuda.empty_cache()
 
-            # stable diffusion
+
+            # -- stable diffusion --
 
             # sd inputs
             target_latent_cat_cam = pred_target_latent.view(batch_size, -1)
@@ -126,43 +131,36 @@ for epoch in tqdm(range(epochs)):
 
             image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=1)
 
-            
-
-
-
-
-            # input to unet
+            # unet inputs
             noise = torch.randn_like(reference_image)
+            timesteps = torch.randint(0, sd.noise_scheduler.config.num_train_timesteps, (batch_size,), device=device).long()
 
-            timesteps = torch.randint(0, sd.noise_scheduler.config.num_train_timesteps, (batch_size,), device=device)
-            timesteps = timesteps.long()
-
-            # Add noise to the latents according to the noise magnitude at each timestep
-            # (this is the forward diffusion process)
+            # forward diffusion
             noisy_latents = sd.noise_scheduler.add_noise(reference_image, noise, timesteps)
-
-            # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
-
-            temp = 512
-            del target_image, reference_image, target_image_gt, reference_image_gt
-            torch.cuda.empty_cache()
-
             add_time_ids = [
-                torch.tensor([[temp, temp]]).to(device),
+                torch.tensor([[encoder_input_dim, encoder_input_dim]]).to(device),
                 torch.tensor([[0, 0]]).to(device),
-                torch.tensor([[temp, temp]]).to(device),
+                torch.tensor([[encoder_input_dim, encoder_input_dim]]).to(device),
             ]
             add_time_ids = torch.cat(add_time_ids, dim=1).to(device).repeat(batch_size,1)
             added_cond_kwargs = {"text_embeds":sd.pooled_empty_text_embeds.repeat(batch_size,1).to(device), "time_ids":add_time_ids}
             noise_pred = sd(noisy_latents, timesteps, added_cond_kwargs, image_embeds)
 
-            # sd loss on denoising latent reference + noise
             sd_loss = mse_loss(noise_pred.float(), noise.float())
+
+            # clean unneed variables to free memory
+            del target_pose, reference_pose, target_latent_cat_cam, reference_latent_cat_cam
+            del image_embeds, timesteps, noisy_latents, add_time_ids, added_cond_kwargs
+            torch.cuda.empty_cache()
             
-            total_loss = sd_loss + nerf_loss
-            accelerator.backward(total_loss)
+            # backprop losses
+            accelerator.backward(sd_loss + nerf_loss)
             optimizer.step()
             optimizer.zero_grad()
+
+            # clean unneeded variables to free memory
+            del noise, noise_pred
+            del sd_loss, nerf_loss, 
 
         break
 
