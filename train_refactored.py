@@ -40,8 +40,8 @@ print("accelerator device: ", device)
 sd = SDNetwork(pretrained_models_path, image_encoder_path, cat_cam=True).to(device)
 nerf = NeRFNetwork(channel_dim=sd.channel_dim).to(device)
 
-sd = torch.jit.script(sd)
-nerf = torch.jit.script(nerf)
+# sd = torch.jit.script(sd) # failed optimization
+# nerf = torch.jit.script(nerf)
 
 nerf.train()
 
@@ -53,6 +53,8 @@ max_steps = 1 # originally 1024
 
 encoder_input_dim = 512
 encoder_output_dim = 64
+
+# TODO: be able to mess with these dimensions... 
 
 # dataset
 batch_size = 2
