@@ -47,7 +47,7 @@ print("completed model instantiation")
 bg_color = torch.ones(sd.channel_dim, device=device)
 max_steps = 1 # originally 1024
 
-encoder_input_dim = 256
+encoder_input_dim = 512
 encoder_output_dim = 64
 
 # dataset
@@ -165,7 +165,7 @@ for epoch in tqdm(range(epochs)):
 
             # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
 
-            temp = 256
+            temp = 512
 
             add_time_ids = [
                 torch.tensor([[temp, temp]]).to(device),
