@@ -1,6 +1,6 @@
 import torch
 import itertools
-import tqdm
+from tqdm import tqdm
 
 from pathlib import Path
 from accelerate import Accelerator
