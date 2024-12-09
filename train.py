@@ -167,9 +167,14 @@ for epoch in tqdm(range(epochs)):
             sd_loss = mse_loss(noise_pred.float(), noise.float())
 
             # more visualizations
-            print(noise_pred.shape)
-            decoded_noise_pred = sd.decode_latents(noise_pred)
-            print(decoded_noise_pred.shape)
+            # print(noise_pred.shape)
+            # decoded_noise_pred = sd.decode_latents(noise_pred)
+            # print(decoded_noise_pred.shape)
+
+            torch.save(noise_pred, os.getcwd() + f"/cache/noise_pred.pt")
+
+
+
 
             # clean unneed variables to free memory
             del target_pose, reference_pose, target_latent_cat_cam, reference_latent_cat_cam
@@ -193,4 +198,4 @@ for epoch in tqdm(range(epochs)):
             # TODO: ... 
 
         # for now, stops memory issues
-        break
+        # break
