@@ -126,7 +126,7 @@ for epoch in tqdm(range(epochs)):
             plt.title("Single Channel Image")
             plt.axis('off')
 
-            plt.savefig(os.getcwd() + "cache/pred_target_latent_channel_0.png")
+            plt.savefig(os.getcwd() + "/cache/pred_target_latent_channel_0.png")
 
             
 
