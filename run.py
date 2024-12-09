@@ -105,7 +105,7 @@ nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
 
 sd.to("cpu")
 
-noise_pred = torch.load(os.getcwd() + f"/cache/noise_pred.pt")
+noise_pred = torch.load(os.getcwd() + f"/cache/noise_pred.pt").to("cpu")
 
 decoded_noise_pred = sd.decode_latents(noise_pred)
 
