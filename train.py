@@ -1,6 +1,7 @@
 import torch
 import itertools
 from tqdm import tqdm
+import gc
 
 from pathlib import Path
 from accelerate import Accelerator
@@ -161,5 +162,6 @@ for epoch in tqdm(range(epochs)):
             del noise, noise_pred
             del sd_loss, nerf_loss
             torch.cuda.empty_cache()
+            gc.collect()
 
         # break
