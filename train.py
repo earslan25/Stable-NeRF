@@ -2,6 +2,7 @@ import torch
 import itertools
 from tqdm import tqdm
 import gc
+import matplotlib.pyplot as plt
 
 from pathlib import Path
 from accelerate import Accelerator
@@ -18,7 +19,9 @@ from utils.loss_utils import *
 # TODO:
     # 1. (DONE) figure out the memory issues
     # 2. (DONE) clean up the code
+
     # 3. double check all the logic here 
+    # 4. start adding visualizations
 
 
 # accelerator 
@@ -115,11 +118,19 @@ for epoch in tqdm(range(epochs)):
             # combine losses 
             nerf_loss = nerf_loss_0 + nerf_loss_1
 
+            # TODO: visualizations here?
+            print("target latent shape: ", pred_target_latent.shape)
+            
+
+
+
             # clean unneeded variables to free memory
             del target_rays_o, target_rays_d, target_rays_inds, target_image_gt
             del reference_rays_o, reference_rays_d, reference_rays_inds, reference_image_gt
             torch.cuda.empty_cache()
+            gc.collect()
 
+            # NOTE: garbage collection calls might be causing memory problems?
 
             # -- stable diffusion --
 
@@ -136,6 +147,7 @@ for epoch in tqdm(range(epochs)):
             timesteps = torch.randint(0, sd.noise_scheduler.config.num_train_timesteps, (batch_size,), device=device).long()
 
             # forward diffusion
+                # NOTE: why is this needed? overall pipeline...
             noisy_latents = sd.noise_scheduler.add_noise(reference_image, noise, timesteps)
             add_time_ids = [
                 torch.tensor([[encoder_input_dim, encoder_input_dim]]).to(device),
@@ -163,5 +175,10 @@ for epoch in tqdm(range(epochs)):
             del sd_loss, nerf_loss
             torch.cuda.empty_cache()
             gc.collect()
+
+
+            # -- save model checkpoints for caching and inference -- 
+
+            # TODO: ... 
 
         # break
