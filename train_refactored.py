@@ -51,7 +51,7 @@ encoder_input_dim = 512
 encoder_output_dim = 64
 
 # dataset
-batch_size = 10
+batch_size = 2
 dataset = StableNeRFDataset('nerf', shape=encoder_input_dim, encoded_shape=encoder_output_dim, cache_cuda=True)
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
