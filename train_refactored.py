@@ -192,6 +192,8 @@ for epoch in tqdm(range(epochs)):
             optimizer.step()
             optimizer.zero_grad()
 
+        break
+
 
 
 
