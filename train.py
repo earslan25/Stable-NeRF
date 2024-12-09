@@ -51,7 +51,7 @@ print("completed model instantiation")
 bg_color = torch.ones(sd.channel_dim, device=device)
 max_steps = 1 # originally 1024
 
-encoder_input_dim = 512
+encoder_input_dim = 256
 encoder_output_dim = 64
 
 # TODO: be able to mess with these dimensions... 
@@ -119,18 +119,14 @@ for epoch in tqdm(range(epochs)):
             # combine losses 
             nerf_loss = nerf_loss_0 + nerf_loss_1
 
-            # TODO: visualizations here?
+            # TODO: visualizations here
 
-            print("target latent shape: ", pred_target_latent.shape) # torch.Size([2, 4, 64, 64])
-            for i in range(4):
-                plt.figure()
-                plt.imshow(pred_target_latent[0][i].detach().cpu().numpy(), cmap='gray')
-                plt.title("Single Channel Image")
-                plt.savefig(os.getcwd() + f"/cache/pred_target_latent_channel_{i}.png")
-
-            
-
-
+            # # latent visualization torch.Size([2, 4, 64, 64])
+            # for i in range(4):
+            #     plt.figure()
+            #     plt.imshow(pred_target_latent[0][i].detach().cpu().numpy(), cmap='gray')
+            #     plt.title("Single Channel Image")
+            #     plt.savefig(os.getcwd() + f"/cache/pred_target_latent_channel_{i}.png")
 
             # clean unneeded variables to free memory
             del target_rays_o, target_rays_d, target_rays_inds, target_image_gt
