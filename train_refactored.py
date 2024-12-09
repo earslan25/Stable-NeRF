@@ -39,6 +39,10 @@ print("accelerator device: ", device)
 # instantiate stable diffusion and nerf
 sd = SDNetwork(pretrained_models_path, image_encoder_path, cat_cam=True).to(device)
 nerf = NeRFNetwork(channel_dim=sd.channel_dim).to(device)
+
+sd = torch.jit.script(sd)
+nerf = torch.jit.script(nerf)
+
 nerf.train()
 
 print("completed model instantiation")
@@ -166,6 +170,8 @@ for epoch in tqdm(range(epochs)):
             # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
 
             temp = 512
+            del target_image, reference_image, target_image_gt, reference_image_gt
+            torch.cuda.empty_cache()
 
             add_time_ids = [
                 torch.tensor([[temp, temp]]).to(device),
