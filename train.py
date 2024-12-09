@@ -168,6 +168,8 @@ for epoch in tqdm(range(epochs)):
 
             # more visualizations
             print(noise_pred.shape)
+            decoded_noise_pred = sd.decode_latents(noise_pred)
+            print(decoded_noise_pred.shape)
 
             # clean unneed variables to free memory
             del target_pose, reference_pose, target_latent_cat_cam, reference_latent_cat_cam
