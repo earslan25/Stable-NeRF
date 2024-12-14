@@ -1,6 +1,8 @@
 setup.py
 /oscar/data/csun45/chsu35/Stable-NeRF/submodules/raymarching/src/bindings.cpp
 /oscar/data/csun45/chsu35/Stable-NeRF/submodules/raymarching/src/raymarching.cu
+/oscar/home/earslan/stable_nerf/Stable-NeRF/submodules/raymarching/src/bindings.cpp
+/oscar/home/earslan/stable_nerf/Stable-NeRF/submodules/raymarching/src/raymarching.cu
 raymarching.egg-info/PKG-INFO
 raymarching.egg-info/SOURCES.txt
 raymarching.egg-info/dependency_links.txt

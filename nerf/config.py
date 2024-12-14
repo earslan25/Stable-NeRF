@@ -56,8 +56,8 @@ class BaseNeRFConfig(NeRFConfig):
         otype="FullyFusedMLP",
         activation="ReLU",
         output_activation="None",
-        n_neurons=128,
-        n_hidden_layers=3, # 4 - 1
+        n_neurons=64,
+        n_hidden_layers=1, 
     ))
     encoding_dir: EncodingConfigSH = field(default=EncodingConfigSH(
         otype="SphericalHarmonics",
@@ -67,8 +67,8 @@ class BaseNeRFConfig(NeRFConfig):
         otype="FullyFusedMLP",
         activation="ReLU",
         output_activation="None",
-        n_neurons=128,
-        n_hidden_layers=5, # 6 - 1
+        n_neurons=64,
+        n_hidden_layers=2,
     ))
         
 

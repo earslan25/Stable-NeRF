@@ -16,7 +16,6 @@ class NeRFRenderer(nn.Module):
                  ):
         super().__init__()
 
-        # TODO use this
         self.channel_dim = channel_dim
         self.bound = bound
         self.cascade = 1 + math.ceil(math.log2(bound))
@@ -35,7 +34,7 @@ class NeRFRenderer(nn.Module):
 
         # assume cuda
         # density grid
-        density_grid = torch.zeros([self.cascade, self.grid_size ** 3]) # [CAS, H * H * H]
+        density_grid = torch.zeros([self.cascade, self.grid_size ** 3], dtype=torch.float32) # [CAS, H * H * H]
         density_bitfield = torch.zeros(self.cascade * self.grid_size ** 3 // 8, dtype=torch.uint8) # [CAS * H * H * H // 8]
         self.register_buffer('density_grid', density_grid)
         self.register_buffer('density_bitfield', density_bitfield)
@@ -92,7 +91,6 @@ class NeRFRenderer(nn.Module):
 
         results = {}
 
-        # TODO make color dims latent dims
         if self.training:
             # setup counter
             counter = self.step_counter[self.local_step % 16]
@@ -117,6 +115,7 @@ class NeRFRenderer(nn.Module):
             
             results['weights_sum'] = weights_sum
 
+        # TODO integrate channel dim
         else:
             # allocate outputs 
             # if use autocast, must init as half so it won't be autocasted and lose reference.

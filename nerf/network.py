@@ -1,5 +1,6 @@
 import torch
 import tinycudann as tcnn
+import torch.nn.functional as F
 
 from .activation import trunc_exp
 from .renderer import NeRFRenderer
@@ -21,7 +22,7 @@ class NeRFNetwork(NeRFRenderer):
 
         self.sigma_net = tcnn.NetworkWithInputEncoding(
             3, 1 + self.geo_feat_dim,
-            config["encoding_sigma"], config["network_sigma"],
+            config["encoding_sigma"], config["network_sigma"]
         )
 
         # color network
@@ -42,8 +43,8 @@ class NeRFNetwork(NeRFRenderer):
         x = (x + self.bound) / (2 * self.bound) # to [0, 1]
         h = self.sigma_net(x)
 
-        #sigma = F.relu(h[..., 0])
-        sigma = trunc_exp(h[..., 0])
+        sigma = F.relu(h[..., 0])
+        # sigma = trunc_exp(h[..., 0])
         geo_feat = h[..., 1:]
 
         # color
@@ -57,7 +58,7 @@ class NeRFNetwork(NeRFRenderer):
         # sigmoid activation for rgb
         color = torch.sigmoid(h)
 
-        return sigma, color
+        return sigma.to(torch.float32), color.to(torch.float32)
 
     def density(self, x):
         # x: [N, 3], in [-bound, bound]
@@ -65,12 +66,12 @@ class NeRFNetwork(NeRFRenderer):
         x = (x + self.bound) / (2 * self.bound) # to [0, 1]
         h = self.sigma_net(x)
 
-        #sigma = F.relu(h[..., 0])
-        sigma = trunc_exp(h[..., 0])
+        sigma = F.relu(h[..., 0])
+        # sigma = trunc_exp(h[..., 0])
         geo_feat = h[..., 1:]
 
         return {
-            'sigma': sigma,
+            'sigma': sigma.to(torch.float32),
             'geo_feat': geo_feat,
         }
 

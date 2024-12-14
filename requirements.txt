@@ -11,3 +11,4 @@ transformers
 accelerate
 einops
 pathlib
+torchviz

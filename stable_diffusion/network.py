@@ -14,19 +14,12 @@ else:
 
 class SDNetwork(torch.nn.Module):
 
-    def __init__(self, pretrained_models_path, image_encoder_path, channel_dim=4, cat_cam=True):
+    def __init__(self, pretrained_models_path, image_encoder_path):
         super(SDNetwork, self).__init__()
         # init vae from pretrained
         self.vae = AutoencoderKL.from_pretrained(pretrained_models_path, subfolder="vae")
-        self.channel_dim = channel_dim
-        self.cat_cam = cat_cam
         self.vae.requires_grad_(False)
-
-        #unet_config = UNet2DConditionModel.load_config(pretrained_models_path, subfolder="unet")
-        #unet_config['in_channels'] = channel_dim
-        #unet_config['out_channels'] = channel_dim
-
-        # init vae from pretrained 
+        # init unet from pretrained 
         self.unet = UNet2DConditionModel.from_pretrained(pretrained_models_path, subfolder="unet")
         # self.unet.config.addition_embed_type = "text" 
         self.unet.requires_grad_(False)
@@ -56,14 +49,11 @@ class SDNetwork(torch.nn.Module):
         
     def init_ip_modules(self):
         self.num_tokens = 1 # idk what this is
-        if self.channel_dim == 4:
-            proj_dim = self.channel_dim * (64 ** 2)
-        else:
-            proj_dim = self.image_encoder.config.projection_dim
+        proj_dim = (4 + 3) * (64 ** 2)  # 4 from latent image, 3 from plucker coordinates
 
         self.image_proj_model = ImageProjModel(
             cross_attention_dim=self.unet.config.cross_attention_dim,
-            clip_embeddings_dim=proj_dim + 16 if self.cat_cam else proj_dim,
+            clip_embeddings_dim=proj_dim,
             clip_extra_context_tokens=self.num_tokens,
         )
 

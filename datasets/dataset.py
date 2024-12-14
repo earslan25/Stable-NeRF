@@ -12,7 +12,9 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         encoded_shape=(128, 128), 
         mean=[0.5, 0.5, 0.5], 
         std=[0.5, 0.5, 0.5],
-        cache_cuda=False,
+        generate_cuda_ray=False,
+        fix_choices=(0, 1),
+        percent_objects=0.1
     ):
         
         if isinstance(shape, int):
@@ -25,24 +27,41 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         
         # intrinsic/focal ?
         # ideally this would be a set of objects from different datasets, that is we shuffle images to create pairs
-        images, poses, intrinsic = load_data(dataset=dataset_name, shape=shape, mean=mean, std=std)
+        images, poses, intrinsic = load_data(
+            dataset=dataset_name, 
+            shape=shape, mean=mean, 
+            std=std, 
+            fix_choices=fix_choices,
+            percent_objects=percent_objects
+        )
         print(images.shape, poses.shape, intrinsic.shape)
-        self.intrinsic = torch.tensor([intrinsic[0,0], intrinsic[1,1], intrinsic[0,2], intrinsic[1,2]])
-        shuffle_indices = torch.randperm(images.shape[0])
-        # self.intrinsic = torch.tensor([128.0, 128.0, self.encoded_W // 2, self.encoded_H // 2])
+        # self.intrinsic = torch.tensor([intrinsic[0,0], intrinsic[1,1], intrinsic[0,2], intrinsic[1,2]])
+        self.intrinsic = torch.tensor([138.0, 138.0, self.encoded_W // 2, self.encoded_H // 2])
 
-        self.reference_images = images
-        self.target_images = images[shuffle_indices]
+        if len(images.shape) == 4:
+            # single object dummy nerf data (num_images, 3, W, H)
+            shuffle_indices = torch.randperm(images.shape[0])
+            self.reference_images = images
+            self.target_images = images[shuffle_indices]
+            self.reference_poses = poses
+            self.target_poses = poses[shuffle_indices]
+        else:
+            # objaverse data (num_objects, num_images, 3, W, H)
+            self.reference_images = images[:, 0]
+            self.target_images = images[:, 1]
+            self.reference_poses = poses[:, 0]
+            self.target_poses = poses[:, 1]
 
-        self.reference_poses = poses
-        self.target_poses = poses[shuffle_indices]
-        # cuda rays and poses
-        if cache_cuda:
-            self.intrinsic = self.intrinsic.cuda()
-            self.reference_poses = self.reference_poses.cuda()
-            self.target_poses = self.target_poses.cuda()
-        self.reference_rays = get_rays(self.reference_poses, self.intrinsic, self.encoded_H, self.encoded_W)
-        self.target_rays = get_rays(self.target_poses, self.intrinsic, self.encoded_H, self.encoded_W)
+        # cuda rays and poses, could be cached for faster training but rn gives error
+        if generate_cuda_ray:
+            self.reference_rays = get_rays(self.reference_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
+            self.target_rays = get_rays(self.target_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
+            for key in self.reference_rays.keys():
+                self.reference_rays[key] = self.reference_rays[key].to('cpu')
+                self.target_rays[key] = self.target_rays[key].to('cpu')
+        else:
+            self.reference_rays = get_rays(self.reference_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
+            self.target_rays = get_rays(self.target_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
 
     def __getitem__(self, idx):
         target_image = self.target_images[idx]

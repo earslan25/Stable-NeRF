@@ -25,4 +25,5 @@ dependencies:
     - accelerate
     - einops
     - pathlib
+    - torchviz
 

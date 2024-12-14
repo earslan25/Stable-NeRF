@@ -1,5 +1,7 @@
 /datasets/*
 !/datasets/*.*
+debug_out/
+submodules/raymarching_og/
 /load_module.sh
 .DS_Store
 build/
