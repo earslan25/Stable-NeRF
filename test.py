@@ -236,7 +236,7 @@ def train_nerf():
     optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
     bg_color = 0
-    epochs = 100
+    epochs = 50
 
     nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
 
@@ -252,7 +252,7 @@ def train_nerf():
             reference_image = batch['reference_image'].to(device)
             curr_batch_size = reference_image.shape[0]
 
-            print(curr_batch_size)
+            # print(curr_batch_size)
 
             reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)
             # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
