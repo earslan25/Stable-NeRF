@@ -77,9 +77,7 @@ for epoch in progress_bar:
                 pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
 
                 torch.save(pred, f"visualizations/notes_3/pred_{i:04d}.pt")
-
                 plt.imsave(f"visualizations/notes_3/reference_image_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
-
                 plt.imsave(f"visualizations/notes_3/reference_latent_{i:04d}.png", ref_img)
                 plt.imsave(f"visualizations/notes_3/pred_latent_{i:04d}.png", pred_img)
 
