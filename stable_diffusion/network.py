@@ -163,6 +163,8 @@ class SDNetwork(torch.nn.Module):
 
         print("empty embeddings initialized")
 
+        
+
     def encode_images(self, images):
         latents = self.vae.encode(images).latent_dist.sample()
         latents = latents * self.vae.config.scaling_factor
