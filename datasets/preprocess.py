@@ -8,10 +8,14 @@ Author: Daniel Cho
 
 
 import os
+import psutil
 import numpy as np
 import torch
 import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
 from PIL import Image
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import sys
 sys.path.append(os.getcwd() + "/utils")
@@ -55,7 +59,7 @@ def preprocess_images(images: np.ndarray, shape=(64, 64), mean=[0.5, 0.5, 0.5], 
     transform = transforms.Compose([
         transforms.Resize(shape),
         transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
+        # transforms.Normalize(mean=mean, std=std)
     ])
 
     return torch.stack([
@@ -108,7 +112,7 @@ def load_nerf_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     return images, poses, intrinsic
 
 
-def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], fix_choices=(0, 1), percent_objects=0.001):
     """
     Load in the objaverse dataset.
 
@@ -121,37 +125,64 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
         images: preprocessed images (image set, images in set, channel, x, y).
         poses: camera matrix as a 4x4, where the last row is the identity (image set, images in set, channel, x, y).
     """
+    assert percent_objects > 0 and percent_objects <= 1, "percent_objects must be between 0 and 1."
+    if fix_choices is not None:
+        assert len(fix_choices) == 2, "fix_choices must be a tuple of 2 integers."
+        assert fix_choices[0] >= 0 and fix_choices[0] < 12, "fix_choices[0] must be between 0 and 11."
+        assert fix_choices[1] >= 0 and fix_choices[1] < 12, "fix_choices[1] must be between 0 and 11."
 
-    dataset_path = os.getcwd() + "/datasets/objaverse/views_release"
+    # dataset_path = os.getcwd() + "/datasets/objaverse/views_release"
+    dataset_path = '/users/earslan/scratch/stable_nerf_data/objaverse/views_release'
 
     # ensure dataset directory exists
     if not os.path.isdir(dataset_path):
         raise Exception("[preprocess.py] The objaverse folder in datasets was not found. Either it does not exists or you're in the wrong directory. If the latter, run from the Stable-NeRF directory.")
 
     # load in data from dataset
-    image_sets, pose_sets = [], []
-    for image_set_path in os.listdir(dataset_path):
+    def process_image_set(image_set_path, fix_choices):
         try:
             images, poses = [], []
-            for i in range(12):
+            # only choose 2 random poses out of 12 to load per object
+            if fix_choices is not None:
+                choices = np.array(fix_choices)
+            else:
+                choices = np.random.choice(12, 2, replace=False)
+            for i in choices:
                 image = Image.open(f"{dataset_path}/{image_set_path}/{i:03d}.png")
                 image = np.array(image.convert("RGB")) / 255.
                 images.append(image)
                 pose = np.load(f"{dataset_path}/{image_set_path}/{i:03d}.npy")
                 poses.append(nerf_matrix_to_ngp(pose))
-            image_sets.append(np.array(images))
-            pose_sets.append(np.array(poses))
+            images = preprocess_images(np.array(images), shape=shape, mean=mean, std=std)
+            return images, np.array(poses)
         except:
-            continue
-        
-    # preprocess images
-    preprocessed_image_sets = []
-    for image_set in image_sets:
-        preprocessed_image_sets.append(preprocess_images(image_set, shape=shape, mean=mean, std=std))
-    preprocessed_image_sets = torch.stack(preprocessed_image_sets)
+            return None, None
+
+    image_sets, pose_sets = [], []
+    process = psutil.Process(os.getpid())  # Current process for memory tracking
+    with ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(process_image_set, image_set_path, fix_choices): image_set_path
+            for image_set_path in os.listdir(dataset_path)[:int(len(os.listdir(dataset_path)) * percent_objects)]
+        }
+
+        initial_memory = process.memory_info().rss / (1024 ** 3)  # Initial memory in GB
+        progress_bar = tqdm(as_completed(futures), total=len(futures), dynamic_ncols=True)
+        for future in progress_bar:
+            images, poses = future.result()
+            if images is not None and poses is not None:
+                image_sets.append(images)
+                pose_sets.append(poses)
+
+            current_memory = process.memory_info().rss / (1024 ** 3)
+            memory_diff = current_memory - initial_memory
+            progress_bar.set_description(f"Loading data | Memory Increase: {memory_diff:.2f} GB")
 
     # preprocess poses
+    print(f"Loaded {len(image_sets)} objects and {len(pose_sets)} poses with 2 poses each.")
     pose_sets = np.array(pose_sets)
+    pose_sets = torch.from_numpy(pose_sets)
+    preprocessed_image_sets = torch.stack(image_sets)
 
     # normalized camera intrinsics matrix
     intrinsic = construct_normalized_camera_intrinsics(shape)
@@ -159,7 +190,7 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
     return preprocessed_image_sets, pose_sets, intrinsic
 
 
-def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
+def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], fix_choices=(0, 1), percent_objects=0.1):
     """
     Preprocesses data into img+pose groups (used as references and target).
     
@@ -178,7 +209,7 @@ def load_data(dataset="objaverse", shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.
     if dataset == "nerf":
         return load_nerf_data(shape, mean, std)
     elif dataset == "objaverse":
-        return load_objaverse_data(shape, mean, std)
+        return load_objaverse_data(shape, mean, std, fix_choices, percent_objects)
     else:
         raise Exception(f'[preprocess.py] Dataset "{dataset} not found. Select from ["nerf", "objaverse"]".')
     
