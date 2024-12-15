@@ -143,10 +143,10 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
         try:
             images, poses = [], []
             # only choose 2 random poses out of 12 to load per object
-            if fix_choices is not None:
-                choices = np.array(fix_choices)
-            else:
-                choices = np.random.choice(12, 2, replace=False)
+            # if fix_choices is not None:
+            #     choices = np.array(fix_choices)
+            # else:
+            choices = np.random.choice(12, 2, replace=False)
             for i in choices:
                 image = Image.open(f"{dataset_path}/{image_set_path}/{i:03d}.png")
                 image = np.array(image.convert("RGB")) / 255.
