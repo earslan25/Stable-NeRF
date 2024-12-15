@@ -22,7 +22,7 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     # in model args: encoder_output_dim, channel_dim, max_steps, bg_color
     channel_dim = 4
     bg_color = 1
-    max_steps = 512  # 1024
+    max_steps = 256  # 1024
     encoder_output_dim = 64  
 
     sd_module = sd
@@ -47,8 +47,8 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     reference_rays_o = batch['reference_rays_o'].to(device)
     reference_rays_d = batch['reference_rays_d'].to(device)
 
-    target_image_gt = target_image_lt.permute(0, 2, 3, 1).view(curr_batch_size, -1, channel_dim)
-    reference_image_gt = reference_image_lt.permute(0, 2, 3, 1).view(curr_batch_size, -1, channel_dim)
+    target_image_gt = (target_image_lt.permute(0, 2, 3, 1).view(curr_batch_size, -1, channel_dim) + 1) / 2
+    reference_image_gt = (reference_image_lt.permute(0, 2, 3, 1).view(curr_batch_size, -1, channel_dim) + 1) / 2
 
     # novel for conditioning and ip adaptor
     # pred_target_latent = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=max_steps)['image']
@@ -67,13 +67,14 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     # nerf loss on target and reference for reconstruction
     nerf_loss = l1_loss(pred_target_latent, target_image_gt) + l1_loss(pred_reference_latent, reference_image_gt)
 
-    # # reference and target latents put together; not using nerf output for reference latent
-    # # NOTE: currently appending cam like this -> we have 4x64x64 + 3x64x64 = 7x64x64, instead of [flat(4x64x64), flat(3x64x64)])
-    pred_target_latent = pred_target_latent.view(curr_batch_size, channel_dim, encoder_output_dim, encoder_output_dim)
+    # reference and target latents put together; not using nerf output for reference latent
+    # NOTE: currently appending cam like this -> we have 4x64x64 + 3x64x64 = 7x64x64, instead of [flat(4x64x64), flat(3x64x64)])
+    # re-normlaize nerf output to [-1, 1] for sd
+    pred_target_latent = pred_target_latent.view(curr_batch_size, channel_dim, encoder_output_dim, encoder_output_dim) * 2 - 1
     target_rays_d = target_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
     reference_rays_d = reference_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
     
-    # cat: changed so that 7x64x64 is not flattened here, we stack two conditions as 2x7x64x64 with batch size doubled
+    # cat: changed so that 7x64x64 is not flattened here, we stack two conditions as 14x64x64 with batch size doubled
     target_latent_cat_cam = torch.cat([pred_target_latent, target_rays_d], dim=1)#.view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
     reference_latent_cat_cam = torch.cat([reference_image_lt, reference_rays_d], dim=1)#.view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
     image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=0)#1)  # batch_size, 2, 7*64*64 for seqlen
@@ -90,14 +91,13 @@ def forward_iteration(sd, nerf, batch, device, model_args):
 
     sample_save_for_vis("latents", noisy_latents, sample_prob=0.0125)
 
-    # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
-    add_time_ids = [
-        torch.tensor([[512, 512]]).to(device),
-        torch.tensor([[0, 0]]).to(device),
-        torch.tensor([[512, 512]]).to(device),
-    ]
-    add_time_ids = torch.cat(add_time_ids, dim=1).to(device).repeat(curr_batch_size,1)
-    added_cond_kwargs = {"text_embeds": sd_module.pooled_empty_text_embeds.repeat(curr_batch_size,1).to(device), "time_ids": add_time_ids}
+    # prompt_embeds = sd.prompt_embeds.repeat(curr_batch_size, 1, 1)
+    add_text_embeds = sd.add_text_embeds.repeat(curr_batch_size, 1).to(device)
+    add_time_ids = sd.add_time_ids.repeat(curr_batch_size, 1).to(device)
+    added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
+
+    noisy_latents = torch.cat([noisy_latents] * 2)
+
     noise_pred = sd(noisy_latents, timesteps, added_cond_kwargs, image_embeds)
 
     sample_save_for_vis("pred", noise_pred, sample_prob=0.0125)
@@ -139,7 +139,8 @@ def training(data_args, model_args, opt_args):
 
     print("initializing sd network")
     use_downsampling_layers = True
-    sd = SDNetwork(pretrained_models_path, image_encoder_path, use_downsampling_layers=use_downsampling_layers).to(device)
+    cache_device = 'cuda'
+    sd = SDNetwork(pretrained_models_path, image_encoder_path, use_downsampling_layers=use_downsampling_layers, embed_cache_device=cache_device).to(device)
     print("sd network initialized and moved to device")
     channel_dim = 4
     print("initializing nerf network with channel_dim =", channel_dim)
@@ -343,32 +344,32 @@ def inference(sd, nerf, test_data, model_args):
             image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=0)#1)  # batch_size, 2, 7*64*64 for seqlen
 
             # input to unet
-            denoised_latent = torch.randn_like(reference_image_lt, device=device)  # Start from random noise
+            latents = torch.randn_like(reference_image_lt, device=device)  # Start from random noise
 
-            # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
-            add_time_ids = [
-                torch.tensor([[512, 512]]).to(device),
-                torch.tensor([[0, 0]]).to(device),
-                torch.tensor([[512, 512]]).to(device),
-            ]
-            add_time_ids = torch.cat(add_time_ids, dim=1).to(device).repeat(curr_batch_size,1)
-            added_cond_kwargs = {"text_embeds": sd.pooled_empty_text_embeds.repeat(curr_batch_size,1).to(device), "time_ids": add_time_ids}
+            prompt_embeds = sd.prompt_embeds.repeat(curr_batch_size, 1, 1)
+            add_text_embeds = sd.add_text_embeds.repeat(curr_batch_size, 1)
+            add_time_ids = sd.add_time_ids.repeat(curr_batch_size, 1)
+            added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
             # fully denoise the image -> conditions: image_embeds; input: noise & time step; output: fully denoised target image
             # pure noise -> x time steps -> fully denoised
-            for timestep in tqdm(timesteps, desc="Denoising"):
-                # convert timestep to a tensor in shape (batch_size,)
-                t = torch.tensor([timestep] * curr_batch_size, device=device)
+            num_steps = 50
+            guidance_scale = 10.0
+            sd.noise_scheduler.set_timesteps(num_steps)
+            timesteps = sd.noise_scheduler.timesteps.to(device)
+            for t in tqdm(timesteps, desc="Denoising"):
+                with torch.no_grad():
+                    latents_model_input = torch.cat([latents] * 2)
 
-                denoised_latent = sd.noise_scheduler.scale_model_input(denoised_latent, timestep)
-                
-                # predict noise 
-                noise_pred = sd(denoised_latent, t, added_cond_kwargs, image_embeds)
-                
-                # compute the predicted denoised latent for the current step
-                denoised_latent = sd.noise_scheduler.step(noise_pred, timestep, denoised_latent).prev_sample
+                    noise_pred = sd(latents_model_input, t, added_cond_kwargs, image_embeds)
 
-            pred_final_novel_view = sd.decode_latents(denoised_latent)
+                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+                latents = sd.noise_scheduler.step(noise_pred, t, latents).prev_sample
+            latents = latents.float()
+
+            pred_final_novel_view = sd.decode_latents(latents)
             pred_final_novel_view = pred_final_novel_view.clamp(0.0, 1.0)
 
             # compute metrics
@@ -414,34 +415,36 @@ if __name__ == "__main__":
         test_dataset = torch.load(load_path + 'test_dataset.pth')
 
     # inference does not use accelerator, if accelerator is used during training, program will exit after saving models
-    denoised_batches = inference(sd, nerf, test_dataset, arg_2)
+    denoised_batches = None # inference(sd, nerf, test_dataset, arg_2)
 
     # save denoised images
-    save_path = 'debug_out/renders/'
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    for i, batch in enumerate(denoised_batches):
-        target_image = batch['target_image']
-        reference_image = batch['reference_image']
-        denoised_image = batch['denoised_image']
-        psnr_val = batch['psnr']
-        ssim_val = batch['ssim'].item()
-        l2_val = batch['l2_loss'].item()
+    save_results = False
+    if save_results and denoised_batches:
+        save_path = 'debug_out/renders/'
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        for i, batch in enumerate(denoised_batches):
+            target_image = batch['target_image']
+            reference_image = batch['reference_image']
+            denoised_image = batch['denoised_image']
+            psnr_val = batch['psnr']
+            ssim_val = batch['ssim'].item()
+            l2_val = batch['l2_loss'].item()
 
-        target_image = target_image.permute(0, 2, 3, 1).cpu().detach().numpy()
-        reference_image = reference_image.permute(0, 2, 3, 1).cpu().detach().numpy()
-        denoised_image = denoised_image.permute(0, 2, 3, 1).cpu().detach().numpy()
+            target_image = target_image.permute(0, 2, 3, 1).cpu().detach().numpy()
+            reference_image = reference_image.permute(0, 2, 3, 1).cpu().detach().numpy()
+            denoised_image = denoised_image.permute(0, 2, 3, 1).cpu().detach().numpy()
 
-        for j in range(target_image.shape[0]):
-            target_img = target_image[j]
-            reference_img = reference_image[j]
-            denoised_img = denoised_image[j]
-            psnr_img = psnr_val[j].item()
-            
-            # plt.imsave all images
-            plt.imsave(save_path + f'target_{i}_{j}.png', target_img)
-            plt.imsave(save_path + f'denoised_{i}_{j}.png', denoised_img)
+            for j in range(target_image.shape[0]):
+                target_img = target_image[j]
+                reference_img = reference_image[j]
+                denoised_img = denoised_image[j]
+                psnr_img = psnr_val[j].item()
+                
+                # plt.imsave all images
+                plt.imsave(save_path + f'target_{i}_{j}.png', target_img)
+                plt.imsave(save_path + f'denoised_{i}_{j}.png', denoised_img)
 
-            print(f"Image {i}_{j} saved. PSNR: {psnr_img}, total SSIM: {ssim_val}, total L2: {l2_val}")
+                print(f"Image {i}_{j} saved. PSNR: {psnr_img}, total SSIM: {ssim_val}, total L2: {l2_val}")
 
-    print("All images saved.")
+        print("All images saved.")

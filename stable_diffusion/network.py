@@ -1,8 +1,9 @@
 import torch
 import torchvision.transforms as T
-from diffusers import AutoencoderKL, UNet2DConditionModel, EulerDiscreteScheduler
+from diffusers import AutoencoderKL, UNet2DConditionModel, EulerDiscreteScheduler, DDIMScheduler
 from transformers import CLIPVisionModelWithProjection, CLIPTextModel, \
-    CLIPTokenizer, CLIPTextModelWithProjection, CLIPImageProcessor
+    CLIPTokenizer, CLIPTextModelWithProjection, CLIPImageProcessor, AutoTokenizer
+from utils.sd import encode_prompt
 
 from .ip_adapter.ip_adapter import ImageProjModel
 from .ip_adapter.utils import is_torch2_available
@@ -14,7 +15,7 @@ else:
 
 class SDNetwork(torch.nn.Module):
 
-    def __init__(self, pretrained_models_path, image_encoder_path, use_downsampling_layers=False):
+    def __init__(self, pretrained_models_path, image_encoder_path, use_downsampling_layers=False, embed_cache_device='cuda'):
         super(SDNetwork, self).__init__()
         # init vae from pretrained
         self.vae = AutoencoderKL.from_pretrained(pretrained_models_path, subfolder="vae")
@@ -24,29 +25,38 @@ class SDNetwork(torch.nn.Module):
         # self.unet.config.addition_embed_type = "text" 
         self.unet.requires_grad_(False)
 
-        self.noise_scheduler = EulerDiscreteScheduler.from_pretrained(pretrained_models_path, subfolder="scheduler")
+        self.noise_scheduler = DDIMScheduler.from_pretrained(pretrained_models_path, subfolder="scheduler")
         self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(image_encoder_path)
         self.image_encoder.requires_grad_(False)
         self.clip_image_processor = T.Resize((self.image_encoder.config.image_size, self.image_encoder.config.image_size), antialias=None)  # CLIPImageProcessor()  
         self.use_downsampling_layers = use_downsampling_layers
         self.init_ip_modules()
 
-        tokenizer = CLIPTokenizer.from_pretrained(pretrained_models_path, subfolder="tokenizer")
-        text_encoder = CLIPTextModel.from_pretrained(pretrained_models_path, subfolder="text_encoder")
+        tokenizer = AutoTokenizer.from_pretrained(
+            pretrained_models_path, subfolder="tokenizer", use_fast=False
+        )
+        tokenizer_2 = AutoTokenizer.from_pretrained(
+            pretrained_models_path, subfolder="tokenizer_2", use_fast=False
+        )
+        text_encoder = CLIPTextModel.from_pretrained(
+            pretrained_models_path, subfolder="text_encoder", torch_dtype=torch.float32
+        ).to(embed_cache_device)
         text_encoder.requires_grad_(False)
-        tokenizer_2 = CLIPTokenizer.from_pretrained(pretrained_models_path, subfolder="tokenizer_2")
-        text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(pretrained_models_path, subfolder="text_encoder_2")
+        text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
+            pretrained_models_path, subfolder="text_encoder_2", torch_dtype=torch.float32
+        ).to(embed_cache_device)
         text_encoder_2.requires_grad_(False)
-        self.init_empty_prompts(tokenizer, text_encoder, tokenizer_2, text_encoder_2)
+
+        self.init_empty_prompts(tokenizer, text_encoder, tokenizer_2, text_encoder_2, embed_cache_device)
         
     def init_ip_modules(self):
-        self.num_tokens = 1 # idk what this is
+        self.num_tokens = 2
         proj_dim = (4 + 3) * (64 ** 2)  # 4 from latent image, 3 from plucker coordinates
 
         self.downsampling_layers = None
         if self.use_downsampling_layers:
             # CNN downsampling before the image projection, from 7x64x64
-            print("Using downsampling layers")
+            print("using downsampling layers")
             self.downsampling_layers = torch.nn.Sequential(
                 torch.nn.Conv2d(7, 16, kernel_size=4, stride=2, padding=1),  # [B, 7, 64, 64] -> [B, 16, 32, 32]
                 torch.nn.ReLU(),
@@ -89,33 +99,67 @@ class SDNetwork(torch.nn.Module):
         self.adapter_modules = torch.nn.ModuleList(self.unet.attn_processors.values())
 
     @torch.no_grad()
-    def init_empty_prompts(self, tokenizer, text_encoder, tokenizer_2, text_encoder_2):
-        missing_prompt = [""]
-        text_input_ids = tokenizer(
-            missing_prompt,
-            max_length=tokenizer.model_max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt"
-        ).input_ids
+    def init_empty_prompts(self, tokenizer, text_encoder, tokenizer_2, text_encoder_2, device):
+        missing_prompt_pos = ""
+        missing_prompt_neg = ""
+
+        # Condition 1
+        prompt = "A futuristic cityscape with tall buildings, flying cars and bright neon lights"
+        # Condition 2
+        prompt_2 = "Cyberpunk style, glowing neon lights, wide-angle perspective"
+        # Condition 3
+        negative_prompt = "tall buildings"
+        # Condition 4
+        negative_prompt_2 = "rainy day"
+
+        (
+            prompt_embeds, 
+            negative_prompt_embeds, 
+            pooled_prompt_embeds, 
+            negative_pooled_prompt_embeds
+        ) = encode_prompt(
+            prompt=missing_prompt_pos,
+            prompt_2=missing_prompt_pos,
+            device=device,
+            negative_prompt=missing_prompt_neg,
+            negative_prompt_2=missing_prompt_neg,
+            tokenizer=tokenizer,
+            tokenizer_2=tokenizer_2,
+            text_encoder=text_encoder,
+            text_encoder_2=text_encoder_2,
+        )
+
+        add_text_embeds = pooled_prompt_embeds
+
+        resolution = 1024
+        crops_coords_top_left = (0,0)
+        original_sizes = (resolution, resolution)
+        crops_coords_top_left = torch.tensor(crops_coords_top_left, dtype=torch.long)
+        original_sizes = torch.tensor(original_sizes, dtype=torch.long)
+        crops_coords_top_left = crops_coords_top_left.repeat(len(prompt_embeds), 1)
+        original_sizes = original_sizes.repeat(len(prompt_embeds), 1)
+
+        target_size = (resolution, resolution)
+        add_time_ids = list(target_size)
+        add_time_ids = torch.tensor([add_time_ids])
+        add_time_ids = add_time_ids.repeat(len(prompt_embeds), 1)
+        add_time_ids = torch.cat([original_sizes, crops_coords_top_left, add_time_ids], dim=-1)
+        add_time_ids = add_time_ids.to(device, dtype=torch.float32)
+        negative_add_time_ids = add_time_ids
+
+        # do_classifier_free_guidance
+        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
+        add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
+        add_time_ids = torch.cat([negative_add_time_ids, add_time_ids], dim=0)
         
-        text_input_ids_2 = tokenizer_2(
-            missing_prompt,
-            max_length=tokenizer_2.model_max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt"
-        ).input_ids
-        
-        encoder_output = text_encoder(text_input_ids, output_hidden_states=True)
-        text_embeds = encoder_output.hidden_states[-2]
-        #print(text_embeds.shape) # [ch] 1,77,768
-        encoder_output_2 = text_encoder_2(text_input_ids_2, output_hidden_states=True)
-        self.pooled_empty_text_embeds = encoder_output_2[0]
-        text_embeds_2 = encoder_output_2.hidden_states[-2]
-        #print(text_embeds_2.shape) # [ch] 1,77,1280
-        self.empty_text_embeds = torch.concat([text_embeds, text_embeds_2], dim=-1) 
-        self.empty_text_embeds = text_encoder(text_input_ids)[0]
+        prompt_embeds = prompt_embeds.to(device, dtype=torch.float32)
+        add_text_embeds = add_text_embeds.to(device)
+
+        self.prompt_embeds = prompt_embeds
+        self.add_text_embeds = add_text_embeds
+        self.add_time_ids = add_time_ids
+
+        print("empty embeddings initialized")
 
     def encode_images(self, images):
         latents = self.vae.encode(images).latent_dist.sample()
@@ -147,16 +191,16 @@ class SDNetwork(torch.nn.Module):
         hidden_state_dim = image_embeds.shape[-1] * image_embeds.shape[-2] * image_embeds.shape[-3]
         # change from batch * 2, channel, height, width to batch * 2, channel * height * width
         image_embeds = image_embeds.view(-1, hidden_state_dim)
-        ip_tokens = self.image_proj_model(image_embeds)
-        ip_tokens = ip_tokens.view(bs, seq, -1)
+        ip_tokens = self.image_proj_model(image_embeds)  # batch * 2, num tokens, hidden_state_dim
+        # ip_tokens = ip_tokens.view(bs*seq, 1, -1)
 
         # (batch, sequence_length, feature_dim), concatenated, the more prompts, the larger sequence_length 
-        # encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=-1) 
+        # encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=1) 
         encoder_hidden_states = ip_tokens 
         # [ch] for multi-image encoding encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=1) 
         
         # Predict the noise residual
-        noise_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs=added_cond_kwargs).sample
+        noise_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs=added_cond_kwargs, timestep_cond=None).sample
 
         return noise_pred
 

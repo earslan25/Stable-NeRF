@@ -165,6 +165,8 @@ def train_nerf():
 
     progress_bar = tqdm(range(epochs))
     for epoch in progress_bar:
+        if epoch > 5:
+            nerf.eval()
         nerf.update_extra_state()
         total_loss = 0
         for i, batch in enumerate(dataloader):
@@ -175,13 +177,13 @@ def train_nerf():
             reference_image = batch['reference_image'].to(device)
             curr_batch_size = reference_image.shape[0]
  
-            reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)
+            reference_image_gt = (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3) + 1) / 2
             pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=256)['image']
 
             # save reference_image_gt and pred to /debug_out
             if (name == 'objaverse' and i == 0) or (name == 'nerf' and (i + 1) % 101 == 0):
                 with torch.no_grad():
-                    plt.imsave(f"debug_out/reference_image_gt_{i}.png", (reference_image_gt[0].detach().view(H, W, 3)).cpu().numpy())
+                    plt.imsave(f"debug_out/reference_image_gt_{i}.png", reference_image_gt[0].detach().view(H, W, 3).cpu().numpy())
                     # plt.imsave(f"debug_out/reference_image_{i}.png", (reference_image[0].detach().permute(1, 2, 0)).cpu().numpy())
                     plt.imsave(f"debug_out/pred_{i}.png", pred[0].detach().view(H, W, 3).cpu().numpy())
 
@@ -189,6 +191,8 @@ def train_nerf():
             # make_dot(loss, params=dict(nerf.named_parameters())).render("debug_out/computation_graph", format="png")
             total_loss += loss.item()
 
+            if epoch > 5:
+                continue
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()

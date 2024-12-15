@@ -2,6 +2,8 @@
 !/datasets/*.*
 debug_out/
 submodules/raymarching_og/
+submodules/stable-diffusion-resources/
+visualizations/
 /load_module.sh
 .DS_Store
 build/

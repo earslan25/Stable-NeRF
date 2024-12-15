@@ -59,7 +59,7 @@ def preprocess_images(images: np.ndarray, shape=(64, 64), mean=[0.5, 0.5, 0.5], 
     transform = transforms.Compose([
         transforms.Resize(shape),
         transforms.ToTensor(),
-        # transforms.Normalize(mean=mean, std=std)
+        transforms.Normalize(mean=mean, std=std)
     ])
 
     return torch.stack([
