@@ -74,6 +74,26 @@ for epoch in progress_bar:
         reference_image_gt = reference_image_latent.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
         pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=512)['image']
 
+
+
+
+        # make a prediction on the target... train multiple views??
+        
+        target_rays_o = batch['target_rays_o'].to(device)
+        target_rays_d = batch['target_rays_d'].to(device)
+
+        target_image = batch['target_image'].to(device)
+        target_image_latent = vae.encode(target_image).latent_dist.sample() * vae.config.scaling_factor
+
+        target_image_gt = target_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
+
+        target_pred = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=512)['image']
+
+
+
+
+
+
         # save reference_image_gt and pred to /debug_out
         # if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
         if epoch % 10 == 0:
@@ -94,6 +114,20 @@ for epoch in progress_bar:
                 plt.imsave(f"visualizations/notes_6/reference_image_{epoch:04d}_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
                 plt.imsave(f"visualizations/notes_6/reference_{epoch:04d}_latent_{i:04d}.png", ref_img)
                 plt.imsave(f"visualizations/notes_6/pred_latent_{epoch:04d}_{i:04d}.png", pred_img)
+
+
+                target_ref_img = latent_to_image(target_image_gt, curr_batch_size, LW, LH)
+                target_pred_img = latent_to_image(target_pred, curr_batch_size, LW, LH)
+
+                target_image = target_image * std + mean
+
+                torch.save(target_pred, f"visualizations/notes_6/target_pred_{epoch:04d}_{i:04d}.pt")
+                plt.imsave(f"visualizations/notes_6/target_reference_image_{epoch:04d}_{i:04d}.png", (target_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
+                plt.imsave(f"visualizations/notes_6/target_reference_{epoch:04d}_latent_{i:04d}.png", target_ref_img)
+                plt.imsave(f"visualizations/notes_6/target_pred_latent_{epoch:04d}_{i:04d}.png", target_pred_img)
+
+
+
 
         loss = l1_loss(pred, reference_image_gt)
         total_loss += loss.item()

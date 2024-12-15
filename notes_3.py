@@ -212,10 +212,10 @@ def test_stable_diffusion():
 
 
 
-    choice = 5
+    choice = 7
     
     # pred = torch.load(f"visualizations/notes_3/pred_{choice:04d}.pt", map_location=torch.device(device))
-    pred = torch.load(f"visualizations/notes_5/pred_0500_0001.pt", map_location=torch.device(device))
+    pred = torch.load(f"visualizations/notes_5/pred_0500_0000.pt", map_location=torch.device(device))
     latents_pred = pred.view(1, 64, 64, 4).permute(0, 3, 1, 2)
 
 
