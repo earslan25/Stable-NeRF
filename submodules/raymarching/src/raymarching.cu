@@ -853,6 +853,7 @@ __global__ void kernel_composite_rays(
     const uint32_t n_alive, 
     const uint32_t n_step, 
     const float T_thresh,
+    const uint32_t channel_dim, 
     int* rays_alive, 
     scalar_t* rays_t, 
     const scalar_t* __restrict__ sigmas, 
@@ -867,21 +868,25 @@ __global__ void kernel_composite_rays(
     
     // locate 
     sigmas += n * n_step;
-    rgbs += n * n_step * 3;
+    rgbs += n * n_step * channel_dim;
     deltas += n * n_step * 2;
     
     rays_t += index;
     weights_sum += index;
     depth += index;
-    image += index * 3;
+    image += index * channel_dim;
 
     scalar_t t = rays_t[0]; // current ray's t
     
     scalar_t weight_sum = weights_sum[0];
     scalar_t d = depth[0];
-    scalar_t r = image[0];
-    scalar_t g = image[1];
-    scalar_t b = image[2];
+    // scalar_t r = image[0];
+    // scalar_t g = image[1];
+    // scalar_t b = image[2];
+    scalar_t channels[MAX_NUM_CHANNELS] = {0};
+    for (int i = 0; i < channel_dim; i++) {
+        channels[i] = image[i];
+    }
 
     // accumulate 
     uint32_t step = 0;
@@ -904,9 +909,12 @@ __global__ void kernel_composite_rays(
 
         t += deltas[1]; // real delta
         d += weight * t;
-        r += weight * rgbs[0];
-        g += weight * rgbs[1];
-        b += weight * rgbs[2];
+        // r += weight * rgbs[0];
+        // g += weight * rgbs[1];
+        // b += weight * rgbs[2];
+        for (int i = 0; i < channel_dim; i++) {
+            channels[i] += weight * rgbs[i];
+        }
 
         //printf("[n=%d] num_steps=%d, alpha=%f, w=%f, T=%f, sum_dt=%f, d=%f\n", n, step, alpha, weight, T, sum_delta, d);
 
@@ -916,7 +924,7 @@ __global__ void kernel_composite_rays(
 
         // locate
         sigmas++;
-        rgbs += 3;
+        rgbs += channel_dim;
         deltas += 2;
         step++;
     }
@@ -932,16 +940,19 @@ __global__ void kernel_composite_rays(
 
     weights_sum[0] = weight_sum; // this is the thing I needed!
     depth[0] = d;
-    image[0] = r;
-    image[1] = g;
-    image[2] = b;
+    // image[0] = r;
+    // image[1] = g;
+    // image[2] = b;
+    for (int i = 0; i < channel_dim; i++) {
+        image[i] = channels[i];
+    }
 }
 
 
-void composite_rays(const uint32_t n_alive, const uint32_t n_step, const float T_thresh, at::Tensor rays_alive, at::Tensor rays_t, at::Tensor sigmas, at::Tensor rgbs, at::Tensor deltas, at::Tensor weights, at::Tensor depth, at::Tensor image) {
+void composite_rays(const uint32_t n_alive, const uint32_t n_step, const float T_thresh, const uint32_t channel_dim, at::Tensor rays_alive, at::Tensor rays_t, at::Tensor sigmas, at::Tensor rgbs, at::Tensor deltas, at::Tensor weights, at::Tensor depth, at::Tensor image) {
     static constexpr uint32_t N_THREAD = 128;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
     image.scalar_type(), "composite_rays", ([&] {
-        kernel_composite_rays<<<div_round_up(n_alive, N_THREAD), N_THREAD>>>(n_alive, n_step, T_thresh, rays_alive.data_ptr<int>(), rays_t.data_ptr<scalar_t>(), sigmas.data_ptr<scalar_t>(), rgbs.data_ptr<scalar_t>(), deltas.data_ptr<scalar_t>(), weights.data_ptr<scalar_t>(), depth.data_ptr<scalar_t>(), image.data_ptr<scalar_t>());
+        kernel_composite_rays<<<div_round_up(n_alive, N_THREAD), N_THREAD>>>(n_alive, n_step, T_thresh, channel_dim, rays_alive.data_ptr<int>(), rays_t.data_ptr<scalar_t>(), sigmas.data_ptr<scalar_t>(), rgbs.data_ptr<scalar_t>(), deltas.data_ptr<scalar_t>(), weights.data_ptr<scalar_t>(), depth.data_ptr<scalar_t>(), image.data_ptr<scalar_t>());
     }));
 }

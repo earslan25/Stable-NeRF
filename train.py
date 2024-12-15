@@ -165,7 +165,7 @@ def training(data_args, model_args, opt_args):
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     print("dataset and dataloader initialized")
 
-    epochs = 12
+    epochs = 10
     lr = 1e-4
     weight_decay = 1e-4
     params_to_opt = [sd.image_proj_model.parameters(),  sd.adapter_modules.parameters(), nerf.parameters()]
@@ -261,8 +261,8 @@ def training(data_args, model_args, opt_args):
 
     if accelerator.is_main_process and save_models:
         # save model and test dataset
-        torch.save(accelerator.unwrap_model(sd).state_dict(), output_dir / "sd.pth")
-        torch.save(accelerator.unwrap_model(nerf).state_dict(), output_dir / "nerf.pth")
+        torch.save(accelerator.unwrap_model(sd), output_dir / "sd.pth")
+        torch.save(accelerator.unwrap_model(nerf), output_dir / "nerf.pth")
         torch.save(test_dataset, output_dir / "test_dataset.pth")
 
     # exit gracefully if using multiple processes
