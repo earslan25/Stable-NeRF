@@ -290,3 +290,49 @@ if __name__ == "__main__":
     # test_multi_channel_nerf() 
     train_nerf()
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Maybe we jump ship here and try again after rebasing... 
+
+
+
+
+
+
+
+
+
+# the new plan...
+
+# see if we can train a nerf on latents?
+    # it doesn't actually have to be the fully channels? not too sure... 
+# we need a bunch fo latents... just look at those latents and see what we can do..
+
+# then start roughing out the slides a little bit...
+
+
+
+
+
+
+
+
+# maybe we sum all the channels and then turn it into a heatmap dealio.. using matplotlib...
+
+
+
+# we almost have everythign that we need... almost all there...
+# and then we start on that presentation...
+    # just start roughing everything out and keep on refining it alll...
