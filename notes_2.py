@@ -8,7 +8,17 @@ from utils.loss_utils import *
 from datasets.dataset import StableNeRFDataset, collate_fn
 from diffusers import AutoencoderKL
 
-from notes_1 import latent_to_image
+
+def latent_to_image(image: np.ndarray, b: int, W: int, H: int) -> np.ndarray:
+    """
+    Converts 4 channel latents into image representations
+    """
+
+    image = image[0].detach().view(H, W, 4).cpu().numpy()
+    image = image / max(np.abs(np.max(image)), np.abs(np.min(image)))
+    image = np.sum(image, -1) / 4.
+
+    return image
 
 
 torch.autograd.set_detect_anomaly(True)
