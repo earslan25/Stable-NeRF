@@ -203,6 +203,16 @@
 
 
 
+# NOTE: it looks like this is a bust...
+# we might need some more in the max_steps, but we just don't have enough...
+# so instead we could try adn fake things a bit...
+# use the opposite of the decoder?
+# what to do... 
+# can we switch to cpu? it failed last time... 
+
+
+
+
 # NOTE: figure out basic nerf 
 
 # just get it to run and train on something basic?
@@ -227,10 +237,10 @@ def train_nerf():
     nerf = NeRFNetwork().to(device)
     nerf.train()
 
-    H, W = 128, 128
+    H, W = 64, 64
     name = 'nerf'
     # name = 'objaverse'
-    dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(H, W), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], generate_cuda_ray=True, percent_objects=0.0001)
+    dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(H, W), generate_cuda_ray=True, percent_objects=0.0001)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
     optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
@@ -256,7 +266,7 @@ def train_nerf():
 
             reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)
             # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
-            pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=256)['image']
+            pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=512)['image']
 
             # save reference_image_gt and pred to /debug_out
             if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
