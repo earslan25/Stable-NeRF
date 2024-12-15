@@ -29,9 +29,16 @@ images = [
     # load_image(f"visualizations/notes_10/pred_0100_0000.pt"),
 
 
-    load_image(f"visualizations/notes_11/pred_0500_0000.pt"),
-    load_image(f"visualizations/notes_11/pred_0500_0001.pt"),
-    load_image(f"visualizations/notes_11/pred_0500_0002.pt"),
+    # load_image(f"visualizations/notes_11/pred_0500_0000.pt"),
+    # load_image(f"visualizations/notes_11/pred_0500_0001.pt"),
+    # load_image(f"visualizations/notes_11/pred_0500_0002.pt"),
+
+
+    load_image(f"visualizations/notes_13/target_pred_0000.pt"),
+    load_image(f"visualizations/notes_13/target_pred_0001.pt"),
+    load_image(f"visualizations/notes_13/target_pred_0002.pt"),
+    load_image(f"visualizations/notes_13/target_pred_0003.pt"),
+    load_image(f"visualizations/notes_13/target_pred_0004.pt"),
 ]
 # # good image
 # image_1 = load_image(f"visualizations/notes_10/pred_0500_0000.pt")
