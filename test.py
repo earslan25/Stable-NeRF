@@ -26,12 +26,20 @@
 
 import torch
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler
+from transformers import AutoTokenizer, CLIPTextModel, CLIPTextModelWithProjection
 from torchvision.transforms.functional import to_pil_image
+from utils import encode_prompt
 
 def test_stable_diffusion():
     """
     Generate a simple image.
     """
+
+    # with autocast(dtype=torch.float16):
+    # with torch.amp.autocast('cuda', args...):
+
+    # with torch.autocast("cpu", torch.float16):
+    
 
     # initialize models
     model_id = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -46,12 +54,43 @@ def test_stable_diffusion():
         model_id, subfolder="unet", torch_dtype=torch.float16
     ).to(device)
 
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id, subfolder="tokenizer", use_fast=False
+    )
+    tokenizer_2 = AutoTokenizer.from_pretrained(
+        model_id, subfolder="tokenizer_2", use_fast=False
+    )
+    text_encoder = CLIPTextModel.from_pretrained(
+        model_id, subfolder="text_encoder", torch_dtype=torch.float16
+    ).to(device)
+    text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
+        model_id, subfolder="text_encoder_2", torch_dtype=torch.float16
+    ).to(device)
+
     # random noise
     input_image = torch.rand((1,3,512,512))
 
     # encode input image
     latents = vae.encode(input_image).latent_dist.sample()
     latents = latents * vae.config.scaling_factor
+
+    prompt = ""
+    prompt_2 = ""
+    negative_prompt = ""
+    negative_prompt_2 = ""
+
+    prompt_embeds, _, _, _ = encode_prompt(
+        prompt=prompt,
+        prompt_2=prompt_2,
+        device=device,
+        negative_prompt=negative_prompt,
+        negative_prompt_2=negative_prompt_2,
+        tokenizer = tokenizer,
+        tokenizer_2 = tokenizer_2,
+        text_encoder = text_encoder,
+        text_encoder_2 = text_encoder_2,
+    )
+
 
     # denoise image
     num_steps = 3
@@ -62,11 +101,15 @@ def test_stable_diffusion():
         with torch.no_grad():
             latents_model_input = torch.cat([latents] * 2) # NOTE: why?
 
+            latents_model_input = latents_model_input.to(dtype=torch.float32)
+            # latents_model_input = torch.tensor()
+            # print(latents_model_input)
+
             noise_pred = unet(
                 latents_model_input, 
                 t, 
                 timestep_cond=None,
-                # encoder_hidden_states=prompt_embeds,
+                encoder_hidden_states=prompt_embeds,
                 # added_cond_kwargs=added_cond_kwargs,
             ).sample
 
