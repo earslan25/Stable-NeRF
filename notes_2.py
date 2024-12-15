@@ -36,7 +36,7 @@ H, W = 512, 512
 LH, LW = 64, 64
 
 name = "nerf" # 'objaverse'
-dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(H, W), generate_cuda_ray=True, percent_objects=0.0001)
+dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(LH, LW), generate_cuda_ray=True, percent_objects=0.0001)
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
 optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
@@ -70,8 +70,8 @@ for epoch in progress_bar:
         if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
             with torch.no_grad():
 
-                print(reference_image_gt.shape)
-                print(pred.shape)
+                # print(reference_image_gt.shape)
+                # print(pred.shape)
 
                 ref_img = latent_to_image(reference_image_gt, curr_batch_size, LW, LH)
                 pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
