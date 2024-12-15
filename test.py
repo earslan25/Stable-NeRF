@@ -245,7 +245,7 @@ def train_nerf():
 
     optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
-    bg_color = 0.
+    bg_color = 0
     epochs = 50
 
     nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
