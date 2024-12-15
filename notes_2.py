@@ -77,15 +77,6 @@ for epoch in progress_bar:
 
 
 
-        # make a prediction on the target... train multiple views??
-        
-        
-
-
-
-
-
-
         # save reference_image_gt and pred to /debug_out
         # if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
         if epoch % 10 == 0:
@@ -149,4 +140,52 @@ for epoch in progress_bar:
         optimizer.step()
     total_loss /= len(dataloader)
     progress_bar.set_description(f"Epoch {epoch + 1}, Loss: {total_loss:.6f}")
+
+
+
+
+
+
+
+# validation set
+
+
+nerf.update_extra_state()
+for i, batch in enumerate(dataloader):
+    with torch.no_grad():
+
+        path = 12
+
+        mean = 0.5
+        std = 0.5
+
+        target_rays_o = batch['target_rays_o'].to(device)
+        target_rays_d = batch['target_rays_d'].to(device)
+
+        target_image = batch['target_image'].to(device)
+        target_image_latent = vae.encode(target_image).latent_dist.sample() * vae.config.scaling_factor
+
+        target_image_latent = (target_image_latent + 3.) / 6.
+
+        curr_batch_size = target_image.shape[0]
+
+
+        target_image_gt = target_image_latent.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
+
+        target_pred = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=512)['image']
+
+
+        target_ref_img = latent_to_image(target_image_gt, curr_batch_size, LW, LH)
+        target_pred_img = latent_to_image(target_pred, curr_batch_size, LW, LH)
+
+        target_image = target_image * std + mean
+
+        torch.save(target_pred, f"visualizations/notes_{path}/target_pred_{i:04d}.pt")
+        plt.imsave(f"visualizations/notes_{path}/target_reference_image_{i:04d}.png", (target_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
+        plt.imsave(f"visualizations/notes_{path}/target_reference_latent_{i:04d}.png", target_ref_img)
+        plt.imsave(f"visualizations/notes_{path}/target_pred_latent_{i:04d}.png", target_pred_img)
+
+
+
+
 

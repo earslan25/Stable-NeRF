@@ -11,12 +11,27 @@ def load_image(path):
 
 # bad image
 images = [
-    # load_image(f"visualizations/notes_9/pred_0400_0000.pt"),
+    # load_image(f"visualizations/notes_9/pred_0010_0000.pt"),
+    # load_image(f"visualizations/notes_9/pred_0020_0000.pt"),
+    # load_image(f"visualizations/notes_9/pred_0050_0000.pt"),
+    # load_image(f"visualizations/notes_9/pred_0100_0000.pt"),
+
     # load_image(f"visualizations/notes_9/pred_0400_0001.pt"),
     # load_image(f"visualizations/notes_9/pred_0400_0002.pt"),
 
-    load_image(f"visualizations/notes_10/pred_0500_0000.pt"),
-    load_image(f"visualizations/notes_10/pred_0500_0001.pt"),
+
+    # load_image(f"visualizations/notes_10/pred_0500_0000.pt"),
+    # load_image(f"visualizations/notes_10/pred_0500_0001.pt"),
+
+    # load_image(f"visualizations/notes_10/pred_0010_0000.pt"),
+    # load_image(f"visualizations/notes_10/pred_0020_0000.pt"),
+    # load_image(f"visualizations/notes_10/pred_0050_0000.pt"),
+    # load_image(f"visualizations/notes_10/pred_0100_0000.pt"),
+
+
+    load_image(f"visualizations/notes_11/pred_0500_0000.pt"),
+    load_image(f"visualizations/notes_11/pred_0500_0001.pt"),
+    load_image(f"visualizations/notes_11/pred_0500_0002.pt"),
 ]
 # # good image
 # image_1 = load_image(f"visualizations/notes_10/pred_0500_0000.pt")
