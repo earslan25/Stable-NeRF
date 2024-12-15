@@ -59,7 +59,7 @@ def preprocess_images(images: np.ndarray, shape=(64, 64), mean=[0.5, 0.5, 0.5], 
     transform = transforms.Compose([
         transforms.Resize(shape),
         transforms.ToTensor(),
-        # transforms.Normalize(mean=mean, std=std)
+        transforms.Normalize(mean=mean, std=std)
     ])
 
     return torch.stack([
@@ -131,8 +131,8 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
         assert fix_choices[0] >= 0 and fix_choices[0] < 12, "fix_choices[0] must be between 0 and 11."
         assert fix_choices[1] >= 0 and fix_choices[1] < 12, "fix_choices[1] must be between 0 and 11."
 
-    # dataset_path = os.getcwd() + "/datasets/objaverse/views_release"
-    dataset_path = '/users/earslan/scratch/stable_nerf_data/objaverse/views_release'
+    dataset_path = os.getcwd() + "/datasets/objaverse/views_release"
+    # dataset_path = '/users/earslan/scratch/stable_nerf_data/objaverse/views_release'
 
     # ensure dataset directory exists
     if not os.path.isdir(dataset_path):
@@ -170,6 +170,7 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
         progress_bar = tqdm(as_completed(futures), total=len(futures), dynamic_ncols=True)
         for future in progress_bar:
             images, poses = future.result()
+
             if images is not None and poses is not None:
                 image_sets.append(images)
                 pose_sets.append(poses)

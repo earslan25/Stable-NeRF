@@ -23,7 +23,7 @@ def latent_to_image(image: np.ndarray, b: int, W: int, H: int) -> np.ndarray:
 
 torch.autograd.set_detect_anomaly(True)
 
-device = "cuda"
+device = "cuda" # "cuda"
 nerf = NeRFNetwork(channel_dim=4).to(device)
 nerf.train()
 
@@ -35,8 +35,12 @@ vae = AutoencoderKL.from_pretrained(
 H, W = 512, 512
 LH, LW = 64, 64
 
-name = "nerf" # 'objaverse'
-dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(LH, LW), generate_cuda_ray=True, percent_objects=0.0001)
+name = "objaverse" # "nerf"
+dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(LH, LW), generate_cuda_ray=device=="cuda", percent_objects=0.1)
+
+# limit dataset
+dataset = [dataset[i] for i in range(3)]
+
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
 optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
@@ -59,7 +63,8 @@ for epoch in progress_bar:
         reference_image = batch['reference_image'].to(device)
         reference_image_latent = vae.encode(reference_image).latent_dist.sample() * vae.config.scaling_factor
 
-        # NOTE: should the latent be normalized? probably... tbh
+        # NOTE: fake normalization
+        reference_image_latent = (reference_image_latent + 3.) / 6.
 
         curr_batch_size = reference_image.shape[0]
 
@@ -76,10 +81,10 @@ for epoch in progress_bar:
                 ref_img = latent_to_image(reference_image_gt, curr_batch_size, LW, LH)
                 pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
 
-                torch.save(pred, f"visualizations/notes_3/pred_{i:04d}.pt")
-                plt.imsave(f"visualizations/notes_3/reference_image_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
-                plt.imsave(f"visualizations/notes_3/reference_latent_{i:04d}.png", ref_img)
-                plt.imsave(f"visualizations/notes_3/pred_latent_{i:04d}.png", pred_img)
+                torch.save(pred, f"visualizations/notes_4/pred_{i:04d}.pt")
+                plt.imsave(f"visualizations/notes_4/reference_image_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
+                plt.imsave(f"visualizations/notes_4/reference_latent_{i:04d}.png", ref_img)
+                plt.imsave(f"visualizations/notes_4/pred_latent_{i:04d}.png", pred_img)
 
         loss = l1_loss(pred, reference_image_gt)
         total_loss += loss.item()
