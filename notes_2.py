@@ -79,15 +79,7 @@ for epoch in progress_bar:
 
         # make a prediction on the target... train multiple views??
         
-        target_rays_o = batch['target_rays_o'].to(device)
-        target_rays_d = batch['target_rays_d'].to(device)
-
-        target_image = batch['target_image'].to(device)
-        target_image_latent = vae.encode(target_image).latent_dist.sample() * vae.config.scaling_factor
-
-        target_image_gt = target_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
-
-        target_pred = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=512)['image']
+        
 
 
 
@@ -114,6 +106,23 @@ for epoch in progress_bar:
                 plt.imsave(f"visualizations/notes_7/reference_image_{epoch:04d}_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
                 plt.imsave(f"visualizations/notes_7/reference_{epoch:04d}_latent_{i:04d}.png", ref_img)
                 plt.imsave(f"visualizations/notes_7/pred_latent_{epoch:04d}_{i:04d}.png", pred_img)
+
+
+
+
+
+
+
+
+                target_rays_o = batch['target_rays_o'].to(device)
+                target_rays_d = batch['target_rays_d'].to(device)
+
+                target_image = batch['target_image'].to(device)
+                target_image_latent = vae.encode(target_image).latent_dist.sample() * vae.config.scaling_factor
+
+                target_image_gt = target_image_latent.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
+
+                target_pred = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=512)['image']
 
 
                 target_ref_img = latent_to_image(target_image_gt, curr_batch_size, LW, LH)
