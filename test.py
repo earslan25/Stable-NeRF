@@ -256,15 +256,15 @@ def train_nerf():
 
             reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)
             # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
-            pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=256)['image']
+            pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=1024)['image']
 
             # save reference_image_gt and pred to /debug_out
             if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
                 with torch.no_grad():
-                    print(pred.mean(dim=1))
-                    plt.imsave(f"cache/reference_image_gt_{i}.png", (reference_image_gt[0].detach().view(H, W, 3)).cpu().numpy())
+                    # print(pred.mean(dim=1))
+                    plt.imsave(f"cache/nerf/reference_image_gt_{i}.png", (reference_image_gt[0].detach().view(H, W, 3)).cpu().numpy())
                     # plt.imsave(f"debug_out/reference_image_{i}.png", (reference_image[0].detach().permute(1, 2, 0)).cpu().numpy())
-                    plt.imsave(f"cache/pred_{i}.png", pred[0].detach().view(H, W, 3).cpu().numpy())
+                    plt.imsave(f"cache/nerf/pred_{i}.png", pred[0].detach().view(H, W, 3).cpu().numpy())
 
             loss = l1_loss(pred, reference_image_gt) # + 0.2 * ssim(pred.permute(0, 2, 1).view(curr_batch_size, 3, H, W), reference_image_gt.permute(0, 2, 1).view(curr_batch_size, 3, H, W))
             # make_dot(loss, params=dict(nerf.named_parameters())).render("debug_out/computation_graph", format="png")
