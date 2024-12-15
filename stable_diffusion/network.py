@@ -1,6 +1,6 @@
 import torch
 import torchvision.transforms as T
-from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
+from diffusers import AutoencoderKL, UNet2DConditionModel, EulerDiscreteScheduler
 from transformers import CLIPVisionModelWithProjection, CLIPTextModel, \
     CLIPTokenizer, CLIPTextModelWithProjection, CLIPImageProcessor
 
@@ -14,7 +14,7 @@ else:
 
 class SDNetwork(torch.nn.Module):
 
-    def __init__(self, pretrained_models_path, image_encoder_path):
+    def __init__(self, pretrained_models_path, image_encoder_path, use_downsampling_layers=False):
         super(SDNetwork, self).__init__()
         # init vae from pretrained
         self.vae = AutoencoderKL.from_pretrained(pretrained_models_path, subfolder="vae")
@@ -24,20 +24,12 @@ class SDNetwork(torch.nn.Module):
         # self.unet.config.addition_embed_type = "text" 
         self.unet.requires_grad_(False)
 
-        self.noise_scheduler = DDPMScheduler.from_pretrained(pretrained_models_path, subfolder="scheduler")
+        self.noise_scheduler = EulerDiscreteScheduler.from_pretrained(pretrained_models_path, subfolder="scheduler")
         self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(image_encoder_path)
         self.image_encoder.requires_grad_(False)
         self.clip_image_processor = T.Resize((self.image_encoder.config.image_size, self.image_encoder.config.image_size), antialias=None)  # CLIPImageProcessor()  
-        
-        # self.pipe = sd_pipe.to(self.device)
-        # self.set_ip_adapter()
-        # self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(self.image_encoder_path).to(
-        #    self.device, dtype=torch.float16
-        #)
-        # self.clip_image_processor = CLIPImageProcessor()
+        self.use_downsampling_layers = use_downsampling_layers
         self.init_ip_modules()
-        # self.unet.encoder_hid_proj.image_projection_layers
-
 
         tokenizer = CLIPTokenizer.from_pretrained(pretrained_models_path, subfolder="tokenizer")
         text_encoder = CLIPTextModel.from_pretrained(pretrained_models_path, subfolder="text_encoder")
@@ -49,13 +41,21 @@ class SDNetwork(torch.nn.Module):
         
     def init_ip_modules(self):
         self.num_tokens = 1 # idk what this is
-        self.use_downsampling_layers = False
         proj_dim = (4 + 3) * (64 ** 2)  # 4 from latent image, 3 from plucker coordinates
-        # TODO intermediate projection layers
+
         self.downsampling_layers = None
         if self.use_downsampling_layers:
-            # CNN downsampling before the image projection
-            self.downsampling_layers = None  # TODO
+            # CNN downsampling before the image projection, from 7x64x64
+            print("Using downsampling layers")
+            self.downsampling_layers = torch.nn.Sequential(
+                torch.nn.Conv2d(7, 16, kernel_size=4, stride=2, padding=1),  # [B, 7, 64, 64] -> [B, 16, 32, 32]
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=1),  # [B, 16, 32, 32] -> [B, 32, 16, 16]
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(32, 64, kernel_size=4, stride=4, padding=0),  # [B, 32, 16, 16] -> [B, 64, 4, 4]
+                torch.nn.ReLU(),
+            )
+            proj_dim = 64 * 4 * 4
 
         self.image_proj_model = ImageProjModel(
             cross_attention_dim=self.unet.config.cross_attention_dim,
@@ -139,12 +139,14 @@ class SDNetwork(torch.nn.Module):
         return image_embeds
 
     def forward(self, noisy_latents, timesteps, added_cond_kwargs, image_embeds):
-        bs, seq, hidden_state_dim = image_embeds.shape
-
         if self.use_downsampling_layers:
-            image_embeds = image_embeds  # TODO
+            image_embeds = self.downsampling_layers(image_embeds)
 
-        image_embeds = image_embeds.view(bs*seq, hidden_state_dim)
+        seq = 2
+        bs = image_embeds.shape[0] // seq
+        hidden_state_dim = image_embeds.shape[-1] * image_embeds.shape[-2] * image_embeds.shape[-3]
+        # change from batch * 2, channel, height, width to batch * 2, channel * height * width
+        image_embeds = image_embeds.view(-1, hidden_state_dim)
         ip_tokens = self.image_proj_model(image_embeds)
         ip_tokens = ip_tokens.view(bs, seq, -1)
 
