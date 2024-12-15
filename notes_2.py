@@ -81,8 +81,8 @@ for epoch in progress_bar:
                 # print(reference_image_gt.shape)
                 # print(pred.shape)
 
-                mean=[0.5, 0.5, 0.5]
-                std=[0.5, 0.5, 0.5]
+                mean = 0.5
+                std = 0.5
 
                 ref_img = latent_to_image(reference_image_gt, curr_batch_size, LW, LH)
                 pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
