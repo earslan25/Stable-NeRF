@@ -49,9 +49,19 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, n
 optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
 bg_color = 0
-epochs = 501
+epochs = 201
 
 nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
+
+
+
+
+path = 13
+
+
+
+
+
 
 progress_bar = tqdm(range(epochs))
 for epoch in progress_bar:
@@ -86,7 +96,7 @@ for epoch in progress_bar:
                 # print(pred.shape)
 
 
-                path = 11
+                
 
                 mean = 0.5
                 std = 0.5
@@ -153,8 +163,6 @@ for epoch in progress_bar:
 nerf.update_extra_state()
 for i, batch in enumerate(dataloader):
     with torch.no_grad():
-
-        path = 12
 
         mean = 0.5
         std = 0.5
