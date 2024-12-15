@@ -60,8 +60,11 @@ class StableNeRFDataset(torch.utils.data.Dataset):
                 self.reference_rays[key] = self.reference_rays[key].to('cpu')
                 self.target_rays[key] = self.target_rays[key].to('cpu')
         else:
-            self.reference_rays = get_rays(self.reference_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
-            self.target_rays = get_rays(self.target_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
+            self.reference_rays = get_rays(self.reference_poses.to('cpu'), self.intrinsic, self.encoded_H, self.encoded_W)
+            self.target_rays = get_rays(self.target_poses.to('cpu'), self.intrinsic, self.encoded_H, self.encoded_W)
+            for key in self.reference_rays.keys():
+                self.reference_rays[key] = self.reference_rays[key].to('cpu')
+                self.target_rays[key] = self.target_rays[key].to('cpu')
 
     def __getitem__(self, idx):
         target_image = self.target_images[idx]
