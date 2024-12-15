@@ -223,7 +223,7 @@ from torchviz import make_dot
 def train_nerf():
     torch.autograd.set_detect_anomaly(True)
 
-    device = 'cuda'
+    device = 'cpu'
     nerf = NeRFNetwork().to(device)
     nerf.train()
 
