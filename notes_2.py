@@ -6,6 +6,9 @@ from tqdm import tqdm
 from utils.graphics_utils import *
 from utils.loss_utils import *
 from datasets.dataset import StableNeRFDataset, collate_fn
+from diffusers import AutoencoderKL
+
+from notes_1 import latent_to_image
 
 
 torch.autograd.set_detect_anomaly(True)
@@ -14,7 +17,13 @@ device = "cuda"
 nerf = NeRFNetwork(channel_dim=4).to(device)
 nerf.train()
 
-H, W = 128, 128
+model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+vae = AutoencoderKL.from_pretrained(
+    model_id, subfolder="vae", torch_dtype=torch.float32
+).to(device)
+
+H, W = 512, 512
+LH, LW = 64, 64
 
 name = "nerf" # 'objaverse'
 dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(H, W), generate_cuda_ray=True, percent_objects=0.0001)
@@ -38,33 +47,32 @@ for epoch in progress_bar:
         reference_rays_d = batch['reference_rays_d'].to(device)
 
         reference_image = batch['reference_image'].to(device)
-        reference_image_latent = ...
+        reference_image_latent = vae.encode(reference_image).latent_dist.sample() * vae.config.scaling_factor
+
+        # NOTE: should the latent be normalized? probably... tbh
 
         curr_batch_size = reference_image.shape[0]
 
-        print(reference_rays_o.shape)
-        print(reference_rays_d.shape)
+        reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
+        # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
+        pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=1024)['image']
 
-        break
-    break
+        # save reference_image_gt and pred to /debug_out
+        if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
+            with torch.no_grad():
 
-    #     reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)
-    #     # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
-    #     pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=1024)['image']
+                ref_img = latent_to_image(reference_image_gt)
+                pred_img = latent_to_image(pred)
 
-    #     # save reference_image_gt and pred to /debug_out
-    #     if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
-    #         with torch.no_grad():
-    #             print(pred.mean(dim=1))
-    #             plt.imsave(f"debug_out/reference_image_gt_{i}.png", (reference_image_gt[0].detach().view(H, W, 3)).cpu().numpy())
-    #             plt.imsave(f"debug_out/pred_{i}.png", pred[0].detach().view(H, W, 3).cpu().numpy())
+                plt.imsave(f"visualizations/notes_2/reference_image_gt_{i}.png", ref_img)
+                plt.imsave(f"visualizations/notes_2/pred_{i}.png", pred_img)
 
-    #     loss = l1_loss(pred, reference_image_gt)
-    #     total_loss += loss.item()
+        loss = l1_loss(pred, reference_image_gt)
+        total_loss += loss.item()
 
-    #     optimizer.zero_grad()
-    #     loss.backward()
-    #     optimizer.step()
-    # total_loss /= len(dataloader)
-    # progress_bar.set_description(f"Epoch {epoch + 1}, Loss: {total_loss:.6f}")
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    total_loss /= len(dataloader)
+    progress_bar.set_description(f"Epoch {epoch + 1}, Loss: {total_loss:.6f}")
 
