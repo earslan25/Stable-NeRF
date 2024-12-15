@@ -49,7 +49,13 @@ class SDNetwork(torch.nn.Module):
         
     def init_ip_modules(self):
         self.num_tokens = 1 # idk what this is
+        self.use_downsampling_layers = False
         proj_dim = (4 + 3) * (64 ** 2)  # 4 from latent image, 3 from plucker coordinates
+        # TODO intermediate projection layers
+        self.downsampling_layers = None
+        if self.use_downsampling_layers:
+            # CNN downsampling before the image projection
+            self.downsampling_layers = None  # TODO
 
         self.image_proj_model = ImageProjModel(
             cross_attention_dim=self.unet.config.cross_attention_dim,
@@ -134,6 +140,9 @@ class SDNetwork(torch.nn.Module):
 
     def forward(self, noisy_latents, timesteps, added_cond_kwargs, image_embeds):
         bs, seq, hidden_state_dim = image_embeds.shape
+
+        if self.use_downsampling_layers:
+            image_embeds = image_embeds  # TODO
 
         image_embeds = image_embeds.view(bs*seq, hidden_state_dim)
         ip_tokens = self.image_proj_model(image_embeds)

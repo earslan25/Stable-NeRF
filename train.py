@@ -26,7 +26,7 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     # in model args: encoder_output_dim, channel_dim, max_steps, bg_color
     channel_dim = 4
     bg_color = 1
-    max_steps = 256 
+    max_steps = 256  # 1024
     encoder_output_dim = 64  
 
     sd_module = sd
@@ -72,14 +72,14 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=1)  # batch_size, 2, 7*64*64 for seqlen
 
     # input to unet
-    noise = torch.randn_like(reference_image_lt)
+    noise = torch.randn_like(target_image_lt)
 
     timesteps = torch.randint(0, sd_module.noise_scheduler.config.num_train_timesteps, (curr_batch_size,), device=device)
     timesteps = timesteps.long()
 
     # Add noise to the latents according to the noise magnitude at each timestep
     # (this is the forward diffusion process)
-    noisy_latents = sd_module.noise_scheduler.add_noise(reference_image, noise, timesteps)
+    noisy_latents = sd_module.noise_scheduler.add_noise(target_image_lt, noise, timesteps)
 
     # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
     add_time_ids = [
@@ -90,7 +90,6 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     add_time_ids = torch.cat(add_time_ids, dim=1).to(device).repeat(curr_batch_size,1)
     added_cond_kwargs = {"text_embeds": sd_module.pooled_empty_text_embeds.repeat(curr_batch_size,1).to(device), "time_ids": add_time_ids}
     noise_pred = sd(noisy_latents, timesteps, added_cond_kwargs, image_embeds)
-    # noise_pred = sd_module(noisy_latents.to(device), timesteps, added_cond_kwargs, image_embeds.to(device))
 
     # sd loss on denoising latent reference + noise
     sd_loss = mse_loss(noise_pred.float(), noise.float())
@@ -99,7 +98,7 @@ def forward_iteration(sd, nerf, batch, device, model_args):
 
 
 def training(data_args, model_args, opt_args):
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
 
     output_dir = Path("output")
     logging_dir = Path("output", "logs")
@@ -269,7 +268,7 @@ def training(data_args, model_args, opt_args):
 
 
 # not validation, full inference
-def evaluate(sd, nerf, test_data, model_args):
+def inference(sd, nerf, test_data, model_args):
     output_dir = Path("output")
     logging_dir = Path("output", "logs")
     
@@ -292,19 +291,20 @@ def evaluate(sd, nerf, test_data, model_args):
     encoder_input_dim = 512  
     encoder_output_dim = 64  
 
+    # batch should probably be the whole dataset, no reason to split for inference
     batch_size = 2
     dataloader = DataLoader(test_data, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
 
     total_loss = 0
-    total_psnr = 0
-    for i, batch in enumerate(dataloader):
+    denoised_batches = []
+    for i, batch in tqdm(enumerate(dataloader)):
         with torch.no_grad():
             curr_batch_size = len(batch['target_image'])
             target_image = batch['target_image']  # THIS IS THE GT TARGET WE WANT TO PREDICT
             reference_image = batch['reference_image']
 
             # cond 1 for eval: latent features of reference image
-            reference_image = sd.encode_images(reference_image) 
+            reference_image_lt = sd.encode_images(reference_image) 
             reference_rays_d = batch['reference_rays_d'].to(device)
 
             # cond 2 for eval: novel/target features from nerf
@@ -313,16 +313,19 @@ def evaluate(sd, nerf, test_data, model_args):
             pred_target_latent = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=max_steps)['image']
 
             pred_target_latent = pred_target_latent.view(curr_batch_size, channel_dim, encoder_output_dim, encoder_output_dim)
-            target_rays_d = target_rays_d.view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
-            reference_rays_d = reference_rays_d.view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
+            target_rays_d = target_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
+            reference_rays_d = reference_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
             
             # cond 2.5 for eval: plucker coordinates concatenated to latent features
             target_latent_cat_cam = torch.cat([pred_target_latent, target_rays_d], dim=1).view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
-            reference_latent_cat_cam = torch.cat([reference_image, reference_rays_d], dim=1).view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
+            reference_latent_cat_cam = torch.cat([reference_image_lt, reference_rays_d], dim=1).view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
             image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=1)  # batch_size, 2, 7*64*64 for seqlen
 
             # input to unet
-            noise = torch.randn_like(reference_image)
+            denoised_latent = torch.randn_like(reference_image_lt, device=device)  # Start from random noise
+
+            # total number of diffusion timesteps 
+            noise_time_steps = sd.noise_scheduler.config.num_train_timesteps
 
             # TODO: not sure if this is correct
             timesteps = torch.arange(0, noise_time_steps, device=device, dtype=torch.float32) / noise_time_steps
@@ -338,14 +341,52 @@ def evaluate(sd, nerf, test_data, model_args):
             added_cond_kwargs = {"text_embeds":sd.pooled_empty_text_embeds.repeat(curr_batch_size,1).to(device), "time_ids":add_time_ids}
 
             # forward diffusion process
-            # TODO: idk how to do this
-            
+            # TODO: fully denoise the image -> conditions: image_embeds; input: noise & time step; output: fully denoised target image
+            # pure noise -> x time steps -> fully denoised
+            for timestep in reversed(range(noise_time_steps)):
+                # convert timestep to a tensor
+                timesteps = torch.tensor([timestep], device=device, dtype=torch.long).repeat(curr_batch_size)
+                
+                # predict noise 
+                noise_pred = sd(denoised_latent, timesteps, added_cond_kwargs, image_embeds)
+                
+                # compute the predicted denoised latent for the current step
+                denoised_latent = sd.noise_scheduler.step(noise_pred, timesteps, denoised_latent).prev_sample
+
+            pred_final_novel_view = sd.decode_latents(denoised_latent)
+            pred_final_novel_view = pred_final_novel_view.clamp(0.0, 1.0).permute(0, 3, 1, 2)
+            target_image = target_image.permute(0, 3, 1, 2)
+
+            # compute metrics
+            l2_loss = l2_loss(pred_final_novel_view, target_image)
+            psnr_val = psnr(pred_final_novel_view, target_image)
+            ssim_val = ssim(pred_final_novel_view, target_image)
+
+            total_loss += l2_loss.item()
+
+            denoised_batches.append({
+                'target_image': target_image,
+                'reference_image': reference_image,
+                'denoised_image': pred_final_novel_view,
+                'l2_loss': l2_loss,
+                'psnr': psnr_val,
+                'ssim': ssim_val
+            })
+
+    total_loss /= len(dataloader)
+    print(f"Testing complete. Average L2 loss on reconstructed images: {total_loss}")
+
+    return denoised_batches
+
 
 if __name__ == "__main__":
     # TODO
     # resolve hacks (fit latents to clip/image projector dims) -> chia
-    # argparser -> daniel
+    # argparser -> daniel 
     # do training -> chia
+    # do inference/denoising loop -> chia
+    # visualize results -> daniel
+    # start presentatation and make some graphics -> daniel
 
     arg_1, arg_2, arg_3 = None, None, None
     train = True
@@ -358,5 +399,5 @@ if __name__ == "__main__":
         nerf = torch.load(load_path + 'nerf.pth')
         test_dataset = torch.load(load_path + 'test_dataset.pth')
 
-    # evaluate does not use accelerator, if accelerator is used during training, program will exit after saving models
-    # evaluate(sd, nerf, test_dataset, arg_2)
+    # inference does not use accelerator, if accelerator is used during training, program will exit after saving models
+    # denoised_batches = inference(sd, nerf, test_dataset, arg_2)
