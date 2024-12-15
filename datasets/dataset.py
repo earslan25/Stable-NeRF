@@ -52,6 +52,8 @@ class StableNeRFDataset(torch.utils.data.Dataset):
             self.reference_poses = poses[:, 0]
             self.target_poses = poses[:, 1]
 
+            # NOTE, multiple images here... 
+
         # cuda rays and poses, could be cached for faster training but rn gives error
         if generate_cuda_ray:
             self.reference_rays = get_rays(self.reference_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
