@@ -38,10 +38,13 @@ LH, LW = 64, 64
 name = "objaverse" # "nerf"
 dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(LH, LW), generate_cuda_ray=device=="cuda", percent_objects=0.01)
 
-# limit dataset
-# dataset = [dataset[i] for i in range(3)]
-
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=collate_fn)
+
+# for i, batch in enumerate(dataloader):
+#     reference_image = batch['reference_image'].to(device)
+#     print(torch.max(reference_image))
+#     print(torch.min(reference_image))
+#     break
 
 optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
@@ -78,8 +81,13 @@ for epoch in progress_bar:
                 # print(reference_image_gt.shape)
                 # print(pred.shape)
 
+                mean=[0.5, 0.5, 0.5]
+                std=[0.5, 0.5, 0.5]
+
                 ref_img = latent_to_image(reference_image_gt, curr_batch_size, LW, LH)
                 pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
+
+                reference_image = reference_image * std + mean
 
                 torch.save(pred, f"visualizations/notes_4/pred_{i:04d}.pt")
                 plt.imsave(f"visualizations/notes_4/reference_image_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
