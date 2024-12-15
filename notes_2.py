@@ -53,8 +53,7 @@ for epoch in progress_bar:
 
         curr_batch_size = reference_image.shape[0]
 
-        reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
-        # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
+        reference_image_gt = reference_image_latent.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
         pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=1024)['image']
 
         # save reference_image_gt and pred to /debug_out
