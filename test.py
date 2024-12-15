@@ -210,7 +210,7 @@
 
 # not too sure... s
 
-
+import gc
 import torch
 import matplotlib.pyplot as plt
 from nerf.network import NeRFNetwork
@@ -273,6 +273,10 @@ def train_nerf():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            torch.cuda.empty_cache()
+            gc.collect()
+
         total_loss /= len(dataloader)
         progress_bar.set_description(f"Epoch {epoch + 1}, Loss: {total_loss:.6f}")
 
