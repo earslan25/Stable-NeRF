@@ -245,7 +245,7 @@ def train_nerf():
 
     optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
-    bg_color = 0
+    bg_color = 0.
     epochs = 50
 
     nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
@@ -257,9 +257,9 @@ def train_nerf():
         for i, batch in enumerate(dataloader):
             if name == 'objaverse' and i > 0:
                 break
-            reference_rays_o = batch['reference_rays_o'].to(device)
-            reference_rays_d = batch['reference_rays_d'].to(device)
-            reference_image = batch['reference_image'].to(device)
+            reference_rays_o = batch['reference_rays_o'].to(device, dtype=torch.float16)
+            reference_rays_d = batch['reference_rays_d'].to(device, dtype=torch.float16)
+            reference_image = batch['reference_image'].to(device, dtype=torch.float16)
             curr_batch_size = reference_image.shape[0]
 
             # print(curr_batch_size)
