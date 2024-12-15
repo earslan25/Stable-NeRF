@@ -14,3 +14,5 @@ __pycache__/
 sdxl-venv/
 assets/
 
+*.png
+*.pt

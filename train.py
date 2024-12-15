@@ -173,7 +173,8 @@ def training(data_args, model_args, opt_args, timestamp_args):
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     print("dataset and dataloader initialized")
 
-    epochs = 10
+    epochs = 50
+    inference_every = 10
     lr = 1e-4
     weight_decay = 1e-4
     params_to_opt = [sd.image_proj_model.parameters(),  sd.adapter_modules.parameters(), nerf.parameters()]
@@ -266,6 +267,46 @@ def training(data_args, model_args, opt_args, timestamp_args):
             }
             losses.append(loss_data)
             print(f"Epoch {epoch} - train loss: {total_loss_train:.4f} - validation loss: {total_loss_valid:.4f}, validation sd loss: {sd_loss_valid:.4f}, validation nerf loss: {nerf_loss_valid:.4f}")
+        
+        if (epoch+1) % inference_every == 0:
+            print(f"Done {epoch+1} epochs, inference start...")
+            denoised_batches = inference(sd, nerf, test_dataset, None)
+            if denoised_batches:
+                print("Saving denoised results...")
+                save_path = os.path.join(load_path,"renders")
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+                    print(f"Created save_path: {save_path}")
+                for i, batch in enumerate(denoised_batches):
+                    target_image = batch['target_image']
+                    reference_image = batch['reference_image']
+                    denoised_image = batch['denoised_image']
+                    psnr_val = batch['psnr']
+                    ssim_val = batch['ssim'].item()
+                    l2_val = batch['l2_loss'].item()
+
+                    target_image = target_image.permute(0, 2, 3, 1).cpu().detach().numpy()
+                    reference_image = reference_image.permute(0, 2, 3, 1).cpu().detach().numpy()
+                    denoised_image = denoised_image.permute(0, 2, 3, 1).cpu().detach().numpy()
+
+                    for j in range(target_image.shape[0]):
+                        target_img = target_image[j]
+                        reference_img = reference_image[j]
+                        denoised_img = denoised_image[j]
+                        psnr_img = psnr_val[j].item()
+                        
+
+                        # plt.imsave all images
+                        plt.imsave(save_path + f'epoch_{epoch+1}_target_{i}_{j}.png', target_img)
+                        plt.imsave(save_path + f'epoch_{epoch+1}_denoised_{i}_{j}.png', denoised_img)
+
+                        print(f"Image {i}_{j} saved. PSNR: {psnr_img}, total SSIM: {ssim_val}, total L2: {l2_val}")
+
+                print("All images saved.")
+            
+            sd.train()
+            nerf.train()
+
 
     if accelerator.is_main_process and save_models:
         # save model and test dataset
@@ -374,7 +415,10 @@ def inference(sd, nerf, test_data, model_args):
             latents = latents.float()
 
             pred_final_novel_view = sd.decode_latents(latents)
-            pred_final_novel_view = pred_final_novel_view.clamp(0.0, 1.0)
+            pred_final_novel_view = torch.clamp((pred_final_novel_view + 1)/2,min=0,max=1)
+
+            target_image = torch.clamp((target_image + 1)/2,min=0,max=1)
+            reference_image = torch.clamp((reference_image + 1)/2,min=0,max=1)
 
             # compute metrics
             l2_val = l2_loss(pred_final_novel_view, target_image)
@@ -384,8 +428,8 @@ def inference(sd, nerf, test_data, model_args):
             total_loss += l2_val.item()
 
             denoised_batches.append({
-                'target_image': torch.clamp((target_image + 1)/2,min=0,max=1),
-                'reference_image': torch.clamp((reference_image + 1)/2,min=0,max=1),
+                'target_image': target_image,
+                'reference_image': reference_image,
                 'denoised_image': pred_final_novel_view,
                 'l2_loss': l2_val,
                 'psnr': psnr_val,
