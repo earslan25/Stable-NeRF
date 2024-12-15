@@ -12,7 +12,7 @@ def sample_save_for_vis(prefix: str, tensor: torch.Tensor, sample_prob: float = 
     if "_" in prefix: print("Warning: when using save_vis_image, do not use underscores in the prefix!")
 
     # rather than saving on a count, we randomly sample
-    if random.random() < sample_prob: return
+    if random.random() > sample_prob: return
 
     # ensure vis directory exists
     if not os.path.exists("visualizations"):
