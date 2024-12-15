@@ -96,8 +96,6 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     add_time_ids = sd.add_time_ids.repeat(curr_batch_size, 1).to(device)
     added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
-    noisy_latents = torch.cat([noisy_latents] * 2)
-
     noise_pred = sd(noisy_latents, timesteps, added_cond_kwargs, image_embeds)
 
     sample_save_for_vis("pred", noise_pred, sample_prob=0.0125)

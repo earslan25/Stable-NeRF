@@ -129,6 +129,8 @@ class SDNetwork(torch.nn.Module):
             text_encoder_2=text_encoder_2,
         )
 
+        # no neg prompts
+
         add_text_embeds = pooled_prompt_embeds
 
         resolution = 1024
@@ -145,12 +147,12 @@ class SDNetwork(torch.nn.Module):
         add_time_ids = add_time_ids.repeat(len(prompt_embeds), 1)
         add_time_ids = torch.cat([original_sizes, crops_coords_top_left, add_time_ids], dim=-1)
         add_time_ids = add_time_ids.to(device, dtype=torch.float32)
-        negative_add_time_ids = add_time_ids
+        # negative_add_time_ids = add_time_ids
 
         # do_classifier_free_guidance
-        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
-        add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
-        add_time_ids = torch.cat([negative_add_time_ids, add_time_ids], dim=0)
+        # prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
+        # add_text_embeds = torch.cat([negative_pooled_prompt_embeds, add_text_embeds], dim=0)
+        # add_time_ids = torch.cat([negative_add_time_ids, add_time_ids], dim=0)
         
         prompt_embeds = prompt_embeds.to(device, dtype=torch.float32)
         add_text_embeds = add_text_embeds.to(device)
@@ -192,7 +194,7 @@ class SDNetwork(torch.nn.Module):
         # change from batch * 2, channel, height, width to batch * 2, channel * height * width
         image_embeds = image_embeds.view(-1, hidden_state_dim)
         ip_tokens = self.image_proj_model(image_embeds)  # batch * 2, num tokens, hidden_state_dim
-        # ip_tokens = ip_tokens.view(bs*seq, 1, -1)
+        ip_tokens = ip_tokens.view(bs, seq * self.num_tokens, -1)  # batch, num tokens * 2, hidden_state_dim
 
         # (batch, sequence_length, feature_dim), concatenated, the more prompts, the larger sequence_length 
         # encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=1) 

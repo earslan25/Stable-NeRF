@@ -152,13 +152,13 @@ def test_sd_denoise():
     timesteps = sd.noise_scheduler.timesteps.to(device)
     for t in tqdm(timesteps, desc="Denoising"):
         with torch.no_grad():
-            latents_model_input = torch.cat([latents] * 2)
+            # latents_model_input = torch.cat([latents] * 2)
+            latents_model_input = latents
 
             noise_pred = sd.unet(latents_model_input, t, prompt_embeds, added_cond_kwargs=added_cond_kwargs, timestep_cond=None).sample
-            # noise_pred = sd.unet(latents, t, prompt_embeds, added_cond_kwargs=added_cond_kwargs, timestep_cond=None).sample
 
-            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+            # noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+            # noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
         latents = sd.noise_scheduler.step(noise_pred, t, latents).prev_sample
     latents = latents.float()
