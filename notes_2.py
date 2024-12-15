@@ -10,7 +10,7 @@ from datasets.dataset import StableNeRFDataset, collate_fn
 
 torch.autograd.set_detect_anomaly(True)
 
-device = "cpu"
+device = "cuda"
 nerf = NeRFNetwork(channel_dim=4).to(device)
 nerf.train()
 
