@@ -90,10 +90,10 @@ for epoch in progress_bar:
 
                 reference_image = reference_image * std + mean
 
-                torch.save(pred, f"visualizations/notes_5/pred_{epoch:04d}_{i:04d}.pt")
-                plt.imsave(f"visualizations/notes_5/reference_image_{epoch:04d}_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
-                plt.imsave(f"visualizations/notes_5/reference_{epoch:04d}_latent_{i:04d}.png", ref_img)
-                plt.imsave(f"visualizations/notes_5/pred_latent_{epoch:04d}_{i:04d}.png", pred_img)
+                torch.save(pred, f"visualizations/notes_6/pred_{epoch:04d}_{i:04d}.pt")
+                plt.imsave(f"visualizations/notes_6/reference_image_{epoch:04d}_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
+                plt.imsave(f"visualizations/notes_6/reference_{epoch:04d}_latent_{i:04d}.png", ref_img)
+                plt.imsave(f"visualizations/notes_6/pred_latent_{epoch:04d}_{i:04d}.png", pred_img)
 
         loss = l1_loss(pred, reference_image_gt)
         total_loss += loss.item()
