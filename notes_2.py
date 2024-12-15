@@ -117,26 +117,26 @@ for epoch in progress_bar:
 
 
 
-                target_rays_o = batch['target_rays_o'].to(device)
-                target_rays_d = batch['target_rays_d'].to(device)
+                # target_rays_o = batch['target_rays_o'].to(device)
+                # target_rays_d = batch['target_rays_d'].to(device)
 
-                target_image = batch['target_image'].to(device)
-                target_image_latent = vae.encode(target_image).latent_dist.sample() * vae.config.scaling_factor
+                # target_image = batch['target_image'].to(device)
+                # target_image_latent = vae.encode(target_image).latent_dist.sample() * vae.config.scaling_factor
 
-                target_image_gt = target_image_latent.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
+                # target_image_gt = target_image_latent.permute(0, 2, 3, 1).view(curr_batch_size, -1, 4)
 
-                target_pred = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=512)['image']
+                # target_pred = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=512)['image']
 
 
-                target_ref_img = latent_to_image(target_image_gt, curr_batch_size, LW, LH)
-                target_pred_img = latent_to_image(target_pred, curr_batch_size, LW, LH)
+                # target_ref_img = latent_to_image(target_image_gt, curr_batch_size, LW, LH)
+                # target_pred_img = latent_to_image(target_pred, curr_batch_size, LW, LH)
 
-                target_image = target_image * std + mean
+                # target_image = target_image * std + mean
 
-                torch.save(target_pred, f"visualizations/notes_{path}/target_pred_{epoch:04d}_{i:04d}.pt")
-                plt.imsave(f"visualizations/notes_{path}/target_reference_image_{i:04d}.png", (target_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
-                plt.imsave(f"visualizations/notes_{path}/target_reference_latent_{i:04d}.png", target_ref_img)
-                plt.imsave(f"visualizations/notes_{path}/target_pred_latent_{epoch:04d}_{i:04d}.png", target_pred_img)
+                # torch.save(target_pred, f"visualizations/notes_{path}/target_pred_{epoch:04d}_{i:04d}.pt")
+                # plt.imsave(f"visualizations/notes_{path}/target_reference_image_{i:04d}.png", (target_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
+                # plt.imsave(f"visualizations/notes_{path}/target_reference_latent_{i:04d}.png", target_ref_img)
+                # plt.imsave(f"visualizations/notes_{path}/target_pred_latent_{epoch:04d}_{i:04d}.png", target_pred_img)
 
 
 
