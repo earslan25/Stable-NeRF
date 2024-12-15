@@ -256,7 +256,7 @@ def train_nerf():
 
             reference_image_gt = reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)
             # reference_image_gt = reference_image.view(curr_batch_size, -1, 3)
-            pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=512)['image']
+            pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=300)['image']
 
             # save reference_image_gt and pred to /debug_out
             if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
