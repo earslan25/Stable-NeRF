@@ -29,6 +29,9 @@ def generate_image_with_sdxl_dual_encoders(
     device = torch.device("cuda"),
     guidance_scale = 1.0
 ):
+    
+    # logging
+    print("sd started")
 
     # Set device and random seed
     torch.manual_seed(seed)
@@ -54,10 +57,13 @@ def generate_image_with_sdxl_dual_encoders(
 
     add_text_embeds = pooled_prompt_embeds
 
+    # logging
+    print("encoded prompts")
+
     ''' 
     [CH] This part is a mystery... mystery start
     '''
-    resolution = 1024
+    resolution = 512
     crops_coords_top_left = (0,0)
     original_sizes = (resolution, resolution)
     crops_coords_top_left = torch.tensor(crops_coords_top_left, dtype=torch.long)
@@ -95,11 +101,18 @@ def generate_image_with_sdxl_dual_encoders(
     )
     latents = torch.randn(latent_shape, device=device, dtype=torch.float16)
 
+    # logging
+    print("completed setup")
+
     # Denoising process
     scheduler.set_timesteps(num_steps)
     timesteps = scheduler.timesteps
     for t in timesteps:
         with torch.no_grad():
+
+            # logging
+            print("denoise step")
+
             latents_model_input = torch.cat([latents] * 2)
 
             noise_pred = unet(
@@ -115,6 +128,9 @@ def generate_image_with_sdxl_dual_encoders(
 
         latents = scheduler.step(noise_pred, t, latents).prev_sample
     latents = latents.float()
+
+    # logging
+    print("completed denoising")
 
     # Decode latents into an image
     with torch.no_grad():
@@ -410,7 +426,7 @@ if __name__ == "__main__":
         vae=vae,
         unet=unet,
         scheduler=scheduler,
-        num_steps=50,  # Increased steps for better quality
+        num_steps=3,  # Increased steps for better quality
         scaling_factor=0.18215,  # Example scaling factor
         guidance_scale=10.0,
         device=device,
