@@ -60,8 +60,8 @@ for epoch in progress_bar:
         if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
             with torch.no_grad():
 
-                ref_img = latent_to_image(reference_image_gt)
-                pred_img = latent_to_image(pred)
+                ref_img = latent_to_image(reference_image_gt, curr_batch_size, LW, LH)
+                pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
 
                 plt.imsave(f"visualizations/notes_2/reference_image_gt_{i}.png", ref_img)
                 plt.imsave(f"visualizations/notes_2/pred_{i}.png", pred_img)
