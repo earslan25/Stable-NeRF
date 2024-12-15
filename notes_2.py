@@ -95,7 +95,7 @@ for epoch in progress_bar:
                 # print(pred.shape)
 
 
-                path = 10
+                path = 11
 
                 mean = 0.5
                 std = 0.5

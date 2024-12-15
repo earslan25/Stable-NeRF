@@ -212,12 +212,11 @@ def test_stable_diffusion():
 
 
 
-    choice = 10
+    choice = 12
     
     # pred = torch.load(f"visualizations/notes_3/pred_{choice:04d}.pt", map_location=torch.device(device))
-    pred = torch.load(f"visualizations/notes_8/target_pred_0500_0000.pt", map_location=torch.device(device))
+    pred = torch.load(f"visualizations/notes_9/pred_0400_0002.pt", map_location=torch.device(device))
     latents_pred = pred.view(1, 64, 64, 4).permute(0, 3, 1, 2)
-
 
     # notes 5 works fine with this setup... but the new targets produce nothing...
     # why... are the ranges different??
@@ -226,12 +225,21 @@ def test_stable_diffusion():
 
 
     # latents_pred = 4. * (latents_pred - 0.45) # best... somehow just works...
-    latents_pred = 5. * latents_pred - 2.5 # even better...
+    # latents_pred = 5. * latents_pred - 2.5 # even better...
 
+    # latents_pred = 4. * latents_pred - 1.5
+    
+    # why is it so dark... 
+    # 
+
+    latents_pred = latents_pred - (torch.max(latents_pred) / 2.)
+    latents_pred= 2. * latents_pred
 
 
 
     # NOTE: did this just break somewhere??
+
+    # maybe it's now an issue of messing with the above values....
 
 
 
@@ -253,7 +261,7 @@ def test_stable_diffusion():
     # latents = 0.25 * latents_noise + 0.25 * latents_pred + 0.50 * latents_true
     # latents = 0.25 * latents_pred + 0.75 * latents_true
 
-    latents = (latents_pred + latents_noise) / 2.
+    latents = latents_pred
     
 
 
