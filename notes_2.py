@@ -75,7 +75,8 @@ for epoch in progress_bar:
         pred = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=512)['image']
 
         # save reference_image_gt and pred to /debug_out
-        if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
+        # if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
+        if epoch % 10 == 0:
             with torch.no_grad():
 
                 # print(reference_image_gt.shape)
@@ -89,10 +90,10 @@ for epoch in progress_bar:
 
                 reference_image = reference_image * std + mean
 
-                torch.save(pred, f"visualizations/notes_4/pred_{i:04d}.pt")
-                plt.imsave(f"visualizations/notes_4/reference_image_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
-                plt.imsave(f"visualizations/notes_4/reference_latent_{i:04d}.png", ref_img)
-                plt.imsave(f"visualizations/notes_4/pred_latent_{i:04d}.png", pred_img)
+                torch.save(pred, f"visualizations/notes_5/pred_{epoch:04d}_{i:04d}.pt")
+                plt.imsave(f"visualizations/notes_5/reference_image_{epoch:04d}_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
+                plt.imsave(f"visualizations/notes_5/reference_{epoch:04d}_latent_{i:04d}.png", ref_img)
+                plt.imsave(f"visualizations/notes_5/pred_latent_{epoch:04d}_{i:04d}.png", pred_img)
 
         loss = l1_loss(pred, reference_image_gt)
         total_loss += loss.item()
