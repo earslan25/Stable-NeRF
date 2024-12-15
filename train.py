@@ -14,6 +14,7 @@ from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration
 from torch.utils.data import DataLoader, random_split
+from utils.visualization import sample_save_for_vis
 
 
 # TODO
@@ -81,6 +82,8 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     # (this is the forward diffusion process)
     noisy_latents = sd_module.noise_scheduler.add_noise(target_image_lt, noise, timesteps)
 
+    sample_save_for_vis("latents", noisy_latents, sample_prob=0.0125)
+
     # dummy_text_embeds = torch.zeros(batch_size, sd.num_tokens, clip_text_output_dim, device=device)
     add_time_ids = [
         torch.tensor([[512, 512]]).to(device),
@@ -90,6 +93,8 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     add_time_ids = torch.cat(add_time_ids, dim=1).to(device).repeat(curr_batch_size,1)
     added_cond_kwargs = {"text_embeds": sd_module.pooled_empty_text_embeds.repeat(curr_batch_size,1).to(device), "time_ids": add_time_ids}
     noise_pred = sd(noisy_latents, timesteps, added_cond_kwargs, image_embeds)
+
+    sample_save_for_vis("pred", noise_pred, sample_prob=0.0125)
 
     # sd loss on denoising latent reference + noise
     sd_loss = mse_loss(noise_pred.float(), noise.float())
