@@ -70,6 +70,9 @@ for epoch in progress_bar:
         if name == 'objaverse' and i == 0 or name == 'nerf' and (i + 1) % 101:
             with torch.no_grad():
 
+                print(reference_image_gt.shape)
+                print(pred.shape)
+
                 ref_img = latent_to_image(reference_image_gt, curr_batch_size, LW, LH)
                 pred_img = latent_to_image(pred, curr_batch_size, LW, LH)
 
