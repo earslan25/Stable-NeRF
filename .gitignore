@@ -1,6 +1,6 @@
 /datasets/*
 !/datasets/*.*
-debug_out/
+debug_out*/
 submodules/raymarching_og/
 submodules/stable-diffusion-resources/
 visualizations/

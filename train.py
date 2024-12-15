@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
+from datetime import datetime
 from nerf.network import NeRFNetwork
 from stable_diffusion.network import SDNetwork
 from datasets.dataset import StableNeRFDataset, collate_fn
@@ -106,10 +107,13 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     return sd_loss, nerf_loss
 
 
-def training(data_args, model_args, opt_args):
+def training(data_args, model_args, opt_args, timestamp_args):
     # torch.autograd.set_detect_anomaly(True)
 
-    output_dir = Path("debug_out")
+    output_dir = Path(f"debug_out_{timestamp_args}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Output directory created at: {output_dir}")
+
     logging_dir = Path("output", "logs")
     save_models = True
 
@@ -265,6 +269,7 @@ def training(data_args, model_args, opt_args):
 
     if accelerator.is_main_process and save_models:
         # save model and test dataset
+        print("saving models")
         torch.save(accelerator.unwrap_model(sd), output_dir / "sd.pth")
         torch.save(accelerator.unwrap_model(nerf), output_dir / "nerf.pth")
         torch.save(test_dataset, output_dir / "test_dataset.pth")
@@ -357,12 +362,13 @@ def inference(sd, nerf, test_data, model_args):
             timesteps = sd.noise_scheduler.timesteps.to(device)
             for t in tqdm(timesteps, desc="Denoising"):
                 with torch.no_grad():
-                    latents_model_input = torch.cat([latents] * 2)
+                    # latents_model_input = torch.cat([latents] * 2)
+                    
+                    # noise_pred = sd(latents_model_input, t, added_cond_kwargs, image_embeds)
+                    noise_pred = sd(latents, t, added_cond_kwargs, image_embeds)
 
-                    noise_pred = sd(latents_model_input, t, added_cond_kwargs, image_embeds)
-
-                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                    #noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    #noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 latents = sd.noise_scheduler.step(noise_pred, t, latents).prev_sample
             latents = latents.float()
@@ -378,8 +384,8 @@ def inference(sd, nerf, test_data, model_args):
             total_loss += l2_val.item()
 
             denoised_batches.append({
-                'target_image': target_image,
-                'reference_image': reference_image,
+                'target_image': torch.clamp((target_image + 1)/2,min=0,max=1),
+                'reference_image': torch.clamp((reference_image + 1)/2,min=0,max=1),
                 'denoised_image': pred_final_novel_view,
                 'l2_loss': l2_val,
                 'psnr': psnr_val,
@@ -400,12 +406,41 @@ if __name__ == "__main__":
     # do inference/denoising loop -> chia
     # visualize results -> daniel
     # start presentatation and make some graphics -> daniel
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run the program with optional timestamp formatting.")
+    parser.add_argument(
+        "--timestamp_args",
+        type=str,
+        help="Optional timestamp format (e.g., '%%Y%%m%%d_%%H%%M%%S').",
+        default=None
+    )
+    parser.add_argument(
+        "--inference",
+        action="store_true",
+        help="Enable inference mode. Skip training.",
+        default=False
+    )
+    args = parser.parse_args()
+
+    train = False if args.inference else True
+    print(f"Training: {train}")
+    assert (train and not args.timestamp_args) or (not train and args.timestamp_args), \
+     "Create a new directory if resume training or provide a timestamp if inference"
+
+    timestamp_args = args.timestamp_args
+    if timestamp_args is None:
+        timestamp_args = datetime.now().strftime("%Y%m%d_%H%M%S")
+        print("Created timestamp_args:", timestamp_args)
+    else:
+        print("Provided timestamp_args:", timestamp_args)
 
     arg_1, arg_2, arg_3 = None, None, None
-    train = True
-    load_path = 'debug_out/'
+    load_path = f'debug_out_{timestamp_args}/'
     if train:
-        sd, nerf, test_dataset, losses = training(arg_1, arg_2, arg_3)
+        print("Start training...")
+        sd, nerf, test_dataset, losses = training(arg_1, arg_2, arg_3, timestamp_args)
+        exit(0) # make sure done training exits
     else:
         assert os.path.exists(load_path), "Path does not exist"
         sd = torch.load(load_path + 'sd.pth')
@@ -413,14 +448,17 @@ if __name__ == "__main__":
         test_dataset = torch.load(load_path + 'test_dataset.pth')
 
     # inference does not use accelerator, if accelerator is used during training, program will exit after saving models
-    denoised_batches = None # inference(sd, nerf, test_dataset, arg_2)
+    print("Start inferencing...")
+    denoised_batches = inference(sd, nerf, test_dataset, arg_2) # denoised_batches = None 
 
     # save denoised images
-    save_results = False
+    save_results = True
     if save_results and denoised_batches:
-        save_path = 'debug_out/renders/'
+        print("Saving denoised results...")
+        save_path = os.path.join(load_path,"renders")
         if not os.path.exists(save_path):
             os.makedirs(save_path)
+            print(f"Created save_path: {save_path}")
         for i, batch in enumerate(denoised_batches):
             target_image = batch['target_image']
             reference_image = batch['reference_image']
@@ -439,6 +477,7 @@ if __name__ == "__main__":
                 denoised_img = denoised_image[j]
                 psnr_img = psnr_val[j].item()
                 
+
                 # plt.imsave all images
                 plt.imsave(save_path + f'target_{i}_{j}.png', target_img)
                 plt.imsave(save_path + f'denoised_{i}_{j}.png', denoised_img)
