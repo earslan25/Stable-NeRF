@@ -164,7 +164,7 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
         futures = {
             executor.submit(process_image_set, image_set_path, fix_choices): image_set_path
             # for image_set_path in os.listdir(dataset_path)[:int(len(os.listdir(dataset_path)) * percent_objects)]
-            for image_set_path in ["0d2872e2a3474ec899c4fdd009701dca"]
+            for image_set_path in ["0d2872e2a3474ec899c4fdd009701dca", "0d87376dea3240c8a17f0e7b2275ee80"]
         }
 
         initial_memory = process.memory_info().rss / (1024 ** 3)  # Initial memory in GB

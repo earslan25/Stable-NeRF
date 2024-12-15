@@ -49,7 +49,7 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, n
 optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
 bg_color = 0
-epochs = 100
+epochs = 200
 
 nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
 
