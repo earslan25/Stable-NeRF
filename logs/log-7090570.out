@@ -1,0 +1,10 @@
+## SLURM PROLOG ###############################################################
+##    Job ID : 7090570
+##  Job Name : stable-nerf-dcho
+##  Nodelist : node1734
+##      CPUs : 
+##  Mem/Node : 4096 MB
+## Directory : /oscar/scratch/dcho24/Stable-NeRF
+##   Job Started : Sat Dec  7 09:05:34 PM EST 2024
+###############################################################################
+hello world
