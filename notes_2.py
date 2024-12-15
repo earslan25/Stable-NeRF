@@ -36,10 +36,10 @@ H, W = 512, 512
 LH, LW = 64, 64
 
 name = "objaverse" # "nerf"
-dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(LH, LW), generate_cuda_ray=device=="cuda", percent_objects=0.1)
+dataset = StableNeRFDataset(dataset_name=name, shape=(H, W), encoded_shape=(LH, LW), generate_cuda_ray=device=="cuda", percent_objects=0.01)
 
 # limit dataset
-dataset = [dataset[i] for i in range(3)]
+# dataset = [dataset[i] for i in range(3)]
 
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
