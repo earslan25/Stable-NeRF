@@ -17,7 +17,7 @@ nerf.train()
 
 model_id = "stabilityai/stable-diffusion-xl-base-1.0"
 
-H, W = 512, 512
+H, W = 256, 256
 # LH, LW = 64, 64
 
 name = "objaverse" # "nerf"
