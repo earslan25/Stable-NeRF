@@ -34,7 +34,7 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, n
 optimizer = torch.optim.Adam(nerf.get_params(1e-2), betas=(0.9, 0.99), eps=1e-15)
 
 bg_color = 0
-epochs = 201
+epochs = 501
 
 nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
 
@@ -82,8 +82,8 @@ for epoch in progress_bar:
 
                 reference_image = reference_image * std + mean
 
-                torch.save(pred, f"visualizations/notes_{path}/pred_{epoch:04d}_{i:04d}.pt")
-                plt.imsave(f"visualizations/notes_{path}/pred_image_{i:04d}.png", (pred[0].detach().view(H, W, 3).cpu().numpy()))
+                # torch.save(pred, f"visualizations/notes_{path}/pred_{epoch:04d}_{i:04d}.pt")
+                plt.imsave(f"visualizations/notes_{path}/pred_image_{epoch:04d}_{i:04d}.png", (pred[0].detach().view(H, W, 3).cpu().numpy()))
                 plt.imsave(f"visualizations/notes_{path}/reference_image_{i:04d}.png", (reference_image.permute(0, 2, 3, 1).view(curr_batch_size, -1, 3)[0].detach().view(H, W, 3)).cpu().numpy())
                 # plt.imsave(f"visualizations/notes_{path}/reference_latent_{i:04d}.png", ref_img)
                 # plt.imsave(f"visualizations/notes_{path}/pred_latent_{epoch:04d}_{i:04d}.png", pred_img)
