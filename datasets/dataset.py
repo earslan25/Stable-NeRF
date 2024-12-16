@@ -1,6 +1,7 @@
 import torch
 from .preprocess import load_data
 from utils.graphics_utils import get_rays
+import math
 
 
 class StableNeRFDataset(torch.utils.data.Dataset):
@@ -36,7 +37,15 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         )
         print(images.shape, poses.shape, intrinsic.shape)
         # self.intrinsic = torch.tensor([intrinsic[0,0], intrinsic[1,1], intrinsic[0,2], intrinsic[1,2]])
-        self.intrinsic = torch.tensor([138.0, 138.0, self.encoded_W // 2, self.encoded_H // 2])
+        # self.intrinsic = torch.tensor([138.0, 138.0, self.encoded_W // 2, self.encoded_H // 2])
+
+
+        fov = 47.1
+        FovY = self.H / (2 * math.tan(fov / 2))
+        FovX = self.W / (2 * math.tan(fov / 2))
+        self.intrinsic = torch.tensor([FovX, FovY, self.encoded_W // 2, self.encoded_H // 2])
+
+
 
         if len(images.shape) == 4:
             # single object dummy nerf data (num_images, 3, W, H)
