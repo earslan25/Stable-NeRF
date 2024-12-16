@@ -56,7 +56,7 @@ nerf.mark_untrained_grid(dataset.reference_poses, dataset.intrinsic)
 
 
 
-path = 14
+path = 15
 
 
 
