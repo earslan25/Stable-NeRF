@@ -212,11 +212,13 @@ def test_stable_diffusion():
 
 
 
-    choice = 13
+    choice = 19
     
     # pred = torch.load(f"visualizations/notes_3/pred_{choice:04d}.pt", map_location=torch.device(device))
-    pred = torch.load(f"visualizations/notes_13/target_pred_0002.pt", map_location=torch.device(device))
+    pred = torch.load(f"visualizations/notes_7/pred_0300_0000.pt", map_location=torch.device(device))
     latents_pred = pred.view(1, 64, 64, 4).permute(0, 3, 1, 2)
+
+    # 10, 20, 50, 70, 100
 
     # notes 5 works fine with this setup... but the new targets produce nothing...
     # why... are the ranges different??
@@ -224,8 +226,8 @@ def test_stable_diffusion():
     # target_pred_0500_0002
 
 
-    latents_pred = 4. * (latents_pred - 0.45) # best... somehow just works...
-    # latents_pred = 5. * latents_pred - 2.5 # even better...
+    # latents_pred = 4. * (latents_pred - 0.45) # best... somehow just works...
+    latents_pred = 5. * latents_pred - 2.5 # even better...
 
     # latents_pred = 4. * latents_pred - 1.5
     
@@ -274,31 +276,31 @@ def test_stable_diffusion():
 
 
 
-    # denoise image
-    num_steps = 1
-    guidance_scale = 10.0
-    scheduler.set_timesteps(num_steps)
-    timesteps = scheduler.timesteps.to(device)
-    for t in timesteps:
-        with torch.no_grad():
-            print("starting denoise step") # logging
-            latents_model_input = torch.cat([latents] * 2)
+    # # denoise image
+    # num_steps = 1
+    # guidance_scale = 10.0
+    # scheduler.set_timesteps(num_steps)
+    # timesteps = scheduler.timesteps.to(device)
+    # for t in timesteps:
+    #     with torch.no_grad():
+    #         print("starting denoise step") # logging
+    #         latents_model_input = torch.cat([latents] * 2)
 
-            print("starting unet") # logging 
-            noise_pred = unet(
-                latents_model_input, 
-                t, 
-                timestep_cond=None,
-                encoder_hidden_states=prompt_embeds,
-                added_cond_kwargs=added_cond_kwargs,
-            ).sample
-            print("completed unet") # logging
+    #         print("starting unet") # logging 
+    #         noise_pred = unet(
+    #             latents_model_input, 
+    #             t, 
+    #             timestep_cond=None,
+    #             encoder_hidden_states=prompt_embeds,
+    #             added_cond_kwargs=added_cond_kwargs,
+    #         ).sample
+    #         print("completed unet") # logging
 
-            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+    #         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+    #         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-        latents = scheduler.step(noise_pred, t, latents).prev_sample
-    latents = latents.float()
+    #     latents = scheduler.step(noise_pred, t, latents).prev_sample
+    # latents = latents.float()
 
 
 
