@@ -4,6 +4,7 @@ debug_out*/
 submodules/raymarching_og/
 submodules/stable-diffusion-resources/
 visualizations/
+/archive/
 /load_module.sh
 .DS_Store
 build/
