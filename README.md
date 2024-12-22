@@ -39,8 +39,8 @@ Initially, we used a synthetic dataset to assess our method's performance. Given
 
 ## Credits
 We would like to thank the following repositories for their code and inspiration:
-- [torch-ngp]([link](https://github.com/ashawkey/torch-ngp)) by Jiaxiang Tang
-- [IP-Adapter]([link](https://ip-adapter.github.io/)) by Hu Ye, Jun Zhang, Sibo Liu, Xiao Han, Wei Yang
+- torch-ngp by Jiaxiang Tang ([link](https://github.com/ashawkey/torch-ngp))
+- IP-Adapter by Hu Ye, Jun Zhang, Sibo Liu, Xiao Han, Wei Yang ([link](https://ip-adapter.github.io/))
 
 
 
