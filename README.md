@@ -1,7 +1,10 @@
 # Stable-NeRF
-This repository contains the code for the research project Stable NeRF. The project aims use 2D priors from Stable Diffusion and the learned 3D forward map from NeRF to perform generalizable novel view synthesis. Our initial proposal and current report can be found in the reports folder.
+This repository contains the code for the research project Stable NeRF. The project aims use 2D priors from Stable Diffusion and the learned 3D forward map from NeRF to perform generalizable novel view synthesis.
 
 Contributors: Emre Arslan (earslan25), Chia-Hong Hsu (swimmincatt35), Daniel Cho (hypochoco)
+
+## Current Progress
+Our initial proposal and current report with results can be found in the reports folder.
 
 ## Conda Env Notes:
 - Currently, directly creating from the environment.yml file is not working or is too slow. Instead, create a new environment with python=3.8 and install the packages manually.
