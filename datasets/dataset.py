@@ -1,4 +1,5 @@
 import torch
+import math
 from .preprocess import load_data
 from utils.graphics_utils import get_rays
 
@@ -26,7 +27,6 @@ class StableNeRFDataset(torch.utils.data.Dataset):
         self.encoded_H, self.encoded_W = encoded_shape
         
         # intrinsic/focal ?
-        # ideally this would be a set of objects from different datasets, that is we shuffle images to create pairs
         images, poses, intrinsic = load_data(
             dataset=dataset_name, 
             shape=shape, mean=mean, 
@@ -34,9 +34,8 @@ class StableNeRFDataset(torch.utils.data.Dataset):
             fix_choices=fix_choices,
             percent_objects=percent_objects
         )
-        print(images.shape, poses.shape, intrinsic.shape)
+        # TODO fix hardcoded intrinsic
         # self.intrinsic = torch.tensor([intrinsic[0,0], intrinsic[1,1], intrinsic[0,2], intrinsic[1,2]])
-        self.intrinsic = torch.tensor([138.0, 138.0, self.encoded_W // 2, self.encoded_H // 2])
 
         if len(images.shape) == 4:
             # single object dummy nerf data (num_images, 3, W, H)
@@ -45,6 +44,8 @@ class StableNeRFDataset(torch.utils.data.Dataset):
             self.target_images = images[shuffle_indices]
             self.reference_poses = poses
             self.target_poses = poses[shuffle_indices]
+
+            self.intrinsic = torch.tensor([138.0, 138.0, self.encoded_W // 2, self.encoded_H // 2])
         else:
             # objaverse data (num_objects, num_images, 3, W, H)
             self.reference_images = images[:, 0]
@@ -52,7 +53,12 @@ class StableNeRFDataset(torch.utils.data.Dataset):
             self.reference_poses = poses[:, 0]
             self.target_poses = poses[:, 1]
 
-        # cuda rays and poses, could be cached for faster training but rn gives error
+            fov = 47.1
+            FovY = self.H / (2 * math.tan(fov / 2))
+            FovX = self.W / (2 * math.tan(fov / 2))
+            self.intrinsic = torch.tensor([FovX, FovY, self.encoded_W // 2, self.encoded_H // 2])
+
+        # cuda rays and poses, could be cached for faster training but currently gives error
         if generate_cuda_ray:
             self.reference_rays = get_rays(self.reference_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
             self.target_rays = get_rays(self.target_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
@@ -60,8 +66,11 @@ class StableNeRFDataset(torch.utils.data.Dataset):
                 self.reference_rays[key] = self.reference_rays[key].to('cpu')
                 self.target_rays[key] = self.target_rays[key].to('cpu')
         else:
-            self.reference_rays = get_rays(self.reference_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
-            self.target_rays = get_rays(self.target_poses.to('cuda'), self.intrinsic, self.encoded_H, self.encoded_W)
+            self.reference_rays = get_rays(self.reference_poses.to('cpu'), self.intrinsic, self.encoded_H, self.encoded_W)
+            self.target_rays = get_rays(self.target_poses.to('cpu'), self.intrinsic, self.encoded_H, self.encoded_W)
+            for key in self.reference_rays.keys():
+                self.reference_rays[key] = self.reference_rays[key].to('cpu')
+                self.target_rays[key] = self.target_rays[key].to('cpu')
 
     def __getitem__(self, idx):
         target_image = self.target_images[idx]

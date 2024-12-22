@@ -23,7 +23,7 @@ What data will you use?
 - We will start with the dataset Zero-1-to-3 uses, which is a syntethic dataset of digitally modeled objects. Then, we will move onto real world datasets which Diffusion with Forward Models uses to demonstrate the performance of its integration with pixelNeRF. These datasets include real world fire hydrants and rooms.
 
 What compute will you use? 
-- Oscar (Chia)
+- Oscar
 - Possibly Kaggle, dual T4's
 
 What existing codebases will you use?
