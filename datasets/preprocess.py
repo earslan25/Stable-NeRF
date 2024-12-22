@@ -132,7 +132,7 @@ def load_objaverse_data(shape=(64, 64), mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5
         assert fix_choices[1] >= 0 and fix_choices[1] < 12, "fix_choices[1] must be between 0 and 11."
 
     # dataset_path = os.getcwd() + "/datasets/objaverse/views_release"
-    dataset_path = '/users/earslan/scratch/stable_nerf_data/objaverse/views_release'
+    dataset_path = 'datasets/objaverse/views_release'
 
     # ensure dataset directory exists
     if not os.path.isdir(dataset_path):

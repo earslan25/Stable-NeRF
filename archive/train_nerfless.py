@@ -17,7 +17,7 @@ from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration
 from torch.utils.data import DataLoader, random_split
-from utils.visualization_utils import sample_save_for_vis
+from utils.visualization import sample_save_for_vis
 
 
 def forward_iteration(sd, nerf, batch, device, model_args):
@@ -43,43 +43,14 @@ def forward_iteration(sd, nerf, batch, device, model_args):
         # batched and separated
         target_image_lt, reference_image_lt = sd_module.encode_images(torch.cat([target_image, reference_image], dim=0)).chunk(2)
 
-    target_rays_o = batch['target_rays_o'].to(device)
     target_rays_d = batch['target_rays_d'].to(device)
-
-    reference_rays_o = batch['reference_rays_o'].to(device)
     reference_rays_d = batch['reference_rays_d'].to(device)
 
-    target_image_gt = (target_image_lt.permute(0, 2, 3, 1).view(curr_batch_size, -1, channel_dim) + 1) / 2
-    reference_image_gt = (reference_image_lt.permute(0, 2, 3, 1).view(curr_batch_size, -1, channel_dim) + 1) / 2
-
-    # novel for conditioning and ip adapter
-    # pred_target_latent = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=max_steps)['image']
-    # reference for reconstruction loss for nerf
-    # pred_reference_latent = nerf.render(reference_rays_o, reference_rays_d, bg_color=bg_color, max_steps=max_steps)['image']
-
-    # batched and separated
-    preds_latent = nerf.render(
-        torch.cat([target_rays_o, reference_rays_o], dim=0), 
-        torch.cat([target_rays_d, reference_rays_d], dim=0), 
-        bg_color=bg_color, 
-        max_steps=max_steps
-    )['image']
-    pred_target_latent, pred_reference_latent = preds_latent.chunk(2)
-
-    # nerf loss on target and reference for reconstruction
-    nerf_loss = l1_loss(pred_target_latent, target_image_gt) + l1_loss(pred_reference_latent, reference_image_gt)
-
-    # reference and target latents put together; not using nerf output for reference latent
-    # NOTE: currently appending cam like this -> we have 4x64x64 + 3x64x64 = 7x64x64, instead of [flat(4x64x64), flat(3x64x64)])
-    # re-normalize nerf output to [-1, 1] for sd
-    pred_target_latent = pred_target_latent.view(curr_batch_size, channel_dim, encoder_output_dim, encoder_output_dim) * 2 - 1
-    target_rays_d = target_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
-    reference_rays_d = reference_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
+    # normlaize rays to -1, 1
+    target_rays_d = target_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim) * 2 - 1
+    reference_rays_d = reference_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim) * 2 - 1
     
-    # cat: changed so that 7x64x64 is not flattened here, we stack two conditions with batch size doubled
-    target_latent_cat_cam = torch.cat([pred_target_latent, target_rays_d], dim=1)  # batch_size, 7, 64, 64
-    reference_latent_cat_cam = torch.cat([reference_image_lt, reference_rays_d], dim=1)  # batch_size, 7, 64, 64
-    image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=0)  # batch_size * 2, 7, 64, 64
+    image_embeds = torch.cat([reference_image_lt, reference_rays_d, target_rays_d], dim=1)
 
     # input to unet
     noise = torch.randn_like(target_image_lt)
@@ -88,6 +59,7 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     timesteps = timesteps.long()
 
     # Add noise to the latents according to the noise magnitude at each timestep
+    # (this is the forward diffusion process)
     noisy_latents = sd_module.noise_scheduler.add_noise(target_image_lt, noise, timesteps)
 
     sample_save_for_vis("latents", noisy_latents, sample_prob=0.0125)
@@ -104,7 +76,7 @@ def forward_iteration(sd, nerf, batch, device, model_args):
     # sd loss on denoising latent reference + noise
     sd_loss = mse_loss(noise_pred.float(), noise.float())
 
-    return sd_loss, nerf_loss
+    return sd_loss, None
 
 
 def training(data_args, model_args, opt_args, timestamp_args):
@@ -145,11 +117,8 @@ def training(data_args, model_args, opt_args, timestamp_args):
     sd = SDNetwork(pretrained_models_path, image_encoder_path, use_downsampling_layers=use_downsampling_layers, embed_cache_device=cache_device).to(device)
     print("sd network initialized and moved to device")
     channel_dim = 4
-    print("initializing nerf network with channel_dim =", channel_dim)
-    nerf = NeRFNetwork(channel_dim=channel_dim).to(device)
-    nerf.train()
-    print("nerf network initialized and moved to device")
 
+    # [CH] default latent dimension encoded by sd's vae is: 4x(H/8)x(W/8)
     encoder_input_dim = 512  
     encoder_output_dim = 64  
 
@@ -157,7 +126,7 @@ def training(data_args, model_args, opt_args, timestamp_args):
     # dataset_name = 'nerf'
     generate_cuda_ray = True
     batch_size = 1
-    percent_objects = 0.0002
+    percent_objects = 0.0001
     print(f"initializing dataset {dataset_name} with batch_size={batch_size}, encoder_input_dim={encoder_input_dim}, encoder_output_dim={encoder_output_dim}")
     dataset = StableNeRFDataset(dataset_name, shape=encoder_input_dim, encoded_shape=encoder_output_dim, generate_cuda_ray=generate_cuda_ray, percent_objects=percent_objects)
 
@@ -172,98 +141,74 @@ def training(data_args, model_args, opt_args, timestamp_args):
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     print("dataset and dataloader initialized")
 
-    epochs = 500
-    inference_every = 50
+    epochs = 1000
+    inference_every = 250
     lr = 1e-4
     weight_decay = 1e-4
-    params_to_opt = [sd.image_proj_model.parameters(),  sd.adapter_modules.parameters(), nerf.parameters()]
+    params_to_opt = [sd.image_proj_model.parameters(),  sd.adapter_modules.parameters()]
     if sd.use_downsampling_layers:
         params_to_opt.append(sd.downsampling_layers.parameters())
     params_to_opt = itertools.chain(*params_to_opt)
     optimizer = torch.optim.AdamW(params_to_opt, lr=lr, weight_decay=weight_decay)
 
-    sd, nerf, optimizer, train_loader, val_loader = accelerator.prepare(sd, nerf, optimizer, train_loader, val_loader)
-
-    # not using forward method for nerf, can't refactor
-    nerf = accelerator.unwrap_model(nerf)
-
-    nerf.mark_untrained_grid(torch.cat([dataset.reference_poses, dataset.target_poses], dim=0).to(device), dataset.intrinsic)
+    sd, optimizer, train_loader, val_loader = accelerator.prepare(sd, optimizer, train_loader, val_loader)
 
     num_training_steps = epochs * len(train_loader)
     progress_bar = tqdm(range(num_training_steps), desc="Training progress", disable=not accelerator.is_main_process)
     losses = []
     for epoch in range(epochs):
-        nerf.update_extra_state()
         if accelerator.is_main_process:
             total_loss_train = 0
             total_sd_loss_train = 0
-            total_nerf_loss_train = 0
         for i, batch in enumerate(train_loader):
-            with accelerator.accumulate(sd, nerf):                
-                sd_loss, nerf_loss = forward_iteration(sd, nerf, batch, device, model_args)
+            # if i > 0:
+            #     break
+            with accelerator.accumulate(sd):
+                # print(f"batch {i} of epoch {epoch} with {get_memory_usage()} memory usage and batch size {len(batch['target_image'])} on process {accelerator.process_index}")
                 
-                total_loss = sd_loss + nerf_loss
+                sd_loss, _ = forward_iteration(sd, None, batch, device, model_args)
 
                 if accelerator.is_main_process and i % 10 == 0:
                     # gather loss
-                    avg_loss = accelerator.gather_for_metrics(total_loss).mean().item()
                     avg_sd_loss = accelerator.gather_for_metrics(sd_loss).mean().item()
-                    avg_nerf_loss = accelerator.gather_for_metrics(nerf_loss).mean().item()
-
-                    total_loss_train += avg_loss
                     total_sd_loss_train += avg_sd_loss
-                    total_nerf_loss_train += avg_nerf_loss
 
-                    progress_bar.set_postfix({'epoch': epoch, 'loss': avg_loss, 'sd_loss': avg_sd_loss, 'nerf_loss': avg_nerf_loss})
+                    progress_bar.set_postfix({'epoch': epoch, 'sd_loss': avg_sd_loss})
                 progress_bar.update(1)
 
                 optimizer.zero_grad()
-                accelerator.backward(total_loss)
+                accelerator.backward(sd_loss)
                 optimizer.step()
  
         # validation
         if accelerator.is_main_process:
-            total_loss_valid = 0
             sd_loss_valid = 0
-            nerf_loss_valid = 0
         with torch.no_grad():
             for batch in val_loader:
-                sd_loss, nerf_loss = forward_iteration(sd, nerf, batch, device, model_args)
+                sd_loss, _ = forward_iteration(sd, None, batch, device, model_args)
                 
-                total_loss = sd_loss + nerf_loss
+                total_loss = sd_loss
 
                 if accelerator.is_main_process:
                     # gather loss
-                    avg_loss = accelerator.gather_for_metrics(total_loss.repeat(batch_size)).mean().item()
                     avg_sd_loss = accelerator.gather_for_metrics(sd_loss.repeat(batch_size)).mean().item()
-                    avg_nerf_loss = accelerator.gather_for_metrics(nerf_loss.repeat(batch_size)).mean().item()
 
-                    total_loss_valid += avg_loss
                     sd_loss_valid += avg_sd_loss
-                    nerf_loss_valid += avg_nerf_loss
 
         if accelerator.is_main_process:
-            total_loss_train /= len(train_loader)
             total_sd_loss_train /= len(train_loader)
-            total_nerf_loss_train /= len(train_loader)
-            total_loss_valid /= len(val_loader)
             sd_loss_valid /= len(val_loader)
-            nerf_loss_valid /= len(val_loader)
 
             loss_data = {
-                "total_loss_train": total_loss_train,
                 "sd_loss_train": total_sd_loss_train,
-                "nerf_loss_train": total_nerf_loss_train,
-                "total_loss_valid": total_loss_valid,
                 "sd_loss_valid": sd_loss_valid,
-                "nerf_loss_valid": nerf_loss_valid,
             }
             losses.append(loss_data)
-            print(f"Epoch {epoch} - train loss: {total_loss_train:.4f} - validation loss: {total_loss_valid:.4f}, validation sd loss: {sd_loss_valid:.4f}, validation nerf loss: {nerf_loss_valid:.4f}")
+            print(f"Epoch {epoch} -  validation sd loss: {sd_loss_valid:.4f}")
         
         if (epoch+1) % inference_every == 0:
             print(f"Done {epoch+1} epochs, inference start...")
-            denoised_batches = inference(sd, nerf, test_dataset, None)
+            denoised_batches = inference(sd, None, test_dataset, None)
             if denoised_batches:
                 print("Saving denoised results...")
                 save_path = os.path.join(load_path,"renders/")
@@ -297,14 +242,11 @@ def training(data_args, model_args, opt_args, timestamp_args):
                 print("All images saved.")
             
             sd.train()
-            nerf.train()
-
 
     if accelerator.is_main_process and save_models:
         # save model and test dataset
         print("saving models")
         torch.save(accelerator.unwrap_model(sd), output_dir / "sd.pth")
-        torch.save(accelerator.unwrap_model(nerf), output_dir / "nerf.pth")
         torch.save(test_dataset, output_dir / "test_dataset.pth")
 
     # exit gracefully if using multiple processes
@@ -316,7 +258,7 @@ def training(data_args, model_args, opt_args, timestamp_args):
 
         exit()
 
-    return sd, nerf, test_dataset, losses
+    return sd, None, test_dataset, losses
 
 
 # not validation, full inference
@@ -333,8 +275,6 @@ def inference(sd, nerf, test_data, model_args):
     sd = sd.to(device)
     sd.eval()
     channel_dim = 4
-    nerf = nerf.to(device)
-    nerf.eval()
 
     bg_color = torch.ones(channel_dim, device=device)
     max_steps = 512  # reduced from 1024 for memory reasons during testing
@@ -355,6 +295,8 @@ def inference(sd, nerf, test_data, model_args):
     denoised_batches = []
     with torch.no_grad():
         for i, batch in tqdm(enumerate(dataloader)):
+            if i > 5:
+                break
             curr_batch_size = len(batch['target_image'])
             target_image = batch['target_image'].to(device)  # THIS IS THE GT TARGET WE WANT TO PREDICT
             reference_image = batch['reference_image'].to(device)
@@ -364,29 +306,24 @@ def inference(sd, nerf, test_data, model_args):
             reference_rays_d = batch['reference_rays_d'].to(device)
 
             # cond 2 for eval: novel/target features from nerf
-            target_rays_o = batch['target_rays_o'].to(device)
             target_rays_d = batch['target_rays_d'].to(device)
-            pred_target_latent = nerf.render(target_rays_o, target_rays_d, bg_color=bg_color, max_steps=max_steps)['image']
 
-            pred_target_latent = pred_target_latent.view(curr_batch_size, channel_dim, encoder_output_dim, encoder_output_dim)
             target_rays_d = target_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
             reference_rays_d = reference_rays_d.permute(0, 2, 1).view(curr_batch_size, 3, encoder_output_dim, encoder_output_dim)
             
             # cond 2.5 for eval: plucker coordinates concatenated to latent features, changed similar to training for batching
-            target_latent_cat_cam = torch.cat([pred_target_latent, target_rays_d], dim=1)#.view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
-            reference_latent_cat_cam = torch.cat([reference_image_lt, reference_rays_d], dim=1)#.view(curr_batch_size, 1, -1)  # batch_size, 1, 7*64*64
-            image_embeds = torch.cat([target_latent_cat_cam, reference_latent_cat_cam], dim=0)#1)  # batch_size, 2, 7*64*64 for seqlen
-
+            image_embeds = torch.cat([reference_image_lt, reference_rays_d, target_rays_d], dim=1)
+            
             # input to unet
             latents = torch.randn_like(reference_image_lt, device=device)  # Start from random noise
 
-            # prompt_embeds = sd.prompt_embeds.repeat(curr_batch_size, 1, 1)
+            prompt_embeds = sd.prompt_embeds.repeat(curr_batch_size, 1, 1)
             add_text_embeds = sd.add_text_embeds.repeat(curr_batch_size, 1)
             add_time_ids = sd.add_time_ids.repeat(curr_batch_size, 1)
             added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
             # fully denoise the image -> conditions: image_embeds; input: noise & time step; output: fully denoised target image
-            # pure noise -> x time steps -> fully denoised; no negative prompts
+            # pure noise -> x time steps -> fully denoised
             num_steps = 50
             guidance_scale = 10.0
             sd.noise_scheduler.set_timesteps(num_steps)
@@ -433,6 +370,14 @@ def inference(sd, nerf, test_data, model_args):
 
 
 if __name__ == "__main__":
+    # TODO
+    # resolve hacks (fit latents to clip/image projector dims) -> chia
+    # argparser -> daniel 
+    # do training -> chia
+    # do inference/denoising loop -> chia
+    # visualize results -> daniel
+    # start presentatation and make some graphics -> daniel
+
     parser = argparse.ArgumentParser(description="Run the program with optional timestamp formatting.")
     parser.add_argument(
         "--timestamp_args",
@@ -464,17 +409,16 @@ if __name__ == "__main__":
     load_path = f'debug_out_{timestamp_args}/'
     if train:
         print("Start training...")
-        sd, nerf, test_dataset, losses = training(arg_1, arg_2, arg_3, timestamp_args)
+        sd, _, test_dataset, losses = training(arg_1, arg_2, arg_3, timestamp_args)
         exit(0) # make sure done training exits
     else:
         assert os.path.exists(load_path), "Path does not exist"
         sd = torch.load(load_path + 'sd.pth')
-        nerf = torch.load(load_path + 'nerf.pth')
         test_dataset = torch.load(load_path + 'test_dataset.pth')
 
     # inference does not use accelerator, if accelerator is used during training, program will exit after saving models
     print("Start inferencing...")
-    denoised_batches = inference(sd, nerf, test_dataset, arg_2) # denoised_batches = None 
+    denoised_batches = inference(sd, None, test_dataset, arg_2) # denoised_batches = None 
 
     # save denoised images
     save_results = True
