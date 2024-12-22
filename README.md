@@ -39,6 +39,7 @@ Initially, we used a synthetic dataset to assess our method's performance. Given
 ## TODO
 - [x] Implement argument parser to handle different configurations
 - [x] Integrate per-pixel features from encoded images into NeRF
+- [x] Distributed training (current Hugging Face accelerate implementation is not compatible with the code format and tiny-cuda-nn)
 
 
 ## Credits
